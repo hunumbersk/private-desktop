@@ -30,10 +30,13 @@ declare module 'three' {
     constructor(array: Float32Array, itemSize: number);
   }
   export class ShaderMaterial extends Material {
-    constructor(options: { vertexShader: string; fragmentShader: string; uniforms: Record<string, unknown> });
-    uniforms: Record<string, { value: unknown }>;
+    constructor(options: { vertexShader: string; fragmentShader: string; uniforms: Record<string, { value: any }> });
+    uniforms: Record<string, { value: any }>;
+    dispose(): void;
   }
-  export class Material {}
+  export class Material {
+    dispose(): void;
+  }
   export class OrthographicCamera extends Object3D {
     constructor(left: number, right: number, top: number, bottom: number, near: number, far: number);
   }
@@ -41,10 +44,17 @@ declare module 'three' {
     constructor(w: number, h: number, options?: { type?: number; minFilter?: number; magFilter?: number });
     texture: Texture;
     setSize(w: number, h: number): void;
+    dispose(): void;
   }
-  export class Texture {}
+  export class Texture {
+    dispose(): void;
+  }
   export class Clock {
     getDelta(): number;
+  }
+  export class Vector2 {
+    constructor(x?: number, y?: number);
+    set(x: number, y: number): void;
   }
   export const HalfFloatType: number;
   export const LinearFilter: number;
