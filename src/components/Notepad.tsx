@@ -12,7 +12,7 @@ import type { BinderItem, NoteModule } from '@/hooks/useNotesStore';
 import { useNotesStore } from '@/hooks/useNotesStore';
 import { useEditorSettings, FONT_OPTIONS } from '@/hooks/useEditorSettings';
 import NetworkGraph from './NetworkGraph';
-import AIAssistPanel from './AIAssistPanel';
+import ExpertReviewPanel from './ExpertReviewPanel';
 import OutlineNetworkGraph from './OutlineNetworkGraph';
 
 interface NotepadProps {
@@ -747,21 +747,20 @@ export default function Notepad({ onClose, onMinimize, isMaximized, onToggleMaxi
               </div>
             )}
 
-            {/* AI Assistant Panel */}
+            {/* Expert Review Panel */}
             {rightPanel === 'ai' && (
               <div className="flex-1 overflow-hidden">
                 {activeDoc && activeDoc.type === 'document' ? (
-                  <AIAssistPanel
+                  <ExpertReviewPanel
                     activeNote={activeDoc}
                     allNotes={store.getAllDocuments()}
-                    scholarPapers={[]}
                     onAddTag={(id, tag) => store.addTag(id, tag)}
                     onClose={() => {}}
                   />
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
                     <Sparkles size={20} color="rgba(192,132,252,0.2)" />
-                    <span className="text-[11px]" style={{ color: '#858585' }}>选择一个文档使用AI助手</span>
+                    <span className="text-[11px]" style={{ color: '#858585' }}>选择一个文档使用专家评估</span>
                   </div>
                 )}
               </div>

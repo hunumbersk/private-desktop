@@ -1,21 +1,9 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link } from "react-router";
-
 export default function NotFound() {
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <Card className="w-full max-w-sm text-center">
-        <CardHeader>
-          <CardTitle className="text-4xl font-bold">404</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground">Page not found</p>
-          <Button asChild className="w-full">
-            <Link to="/">Back to Home</Link>
-          </Button>
-        </CardContent>
-      </Card>
+    <div className="flex flex-col items-center justify-center min-h-screen" style={{ backgroundColor: '#1e1e1e' }}>
+      <h1 className="text-[48px] font-bold mb-2" style={{ color: '#858585' }}>404</h1>
+      <p className="text-[13px] mb-4" style={{ color: '#858585' }}>页面不存在</p>
+      <a href="/" className="text-[12px] hover:underline" style={{ color: '#569cd6' }}>返回桌面</a>
     </div>
   );
 }
