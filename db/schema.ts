@@ -10,7 +10,9 @@ import {
 
 export const users = mysqlTable("users", {
   id: serial("id").primaryKey(),
-  unionId: varchar("unionId", { length: 255 }).notNull().unique(),
+  unionId: varchar("unionId", { length: 255 }).unique(),
+  username: varchar("username", { length: 64 }).unique(),
+  passwordHash: varchar("passwordHash", { length: 255 }),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 320 }),
   avatar: text("avatar"),

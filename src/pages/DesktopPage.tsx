@@ -154,19 +154,17 @@ export default function DesktopPage() {
               <p className="text-[11px] mt-1" style={{ color: '#858585' }}>
                 {apiHealthy === false
                   ? '当前为静态部署，云端同步需后端服务器'
-                  : '登录以启用跨设备数据同步'}
+                  : '注册账号以启用跨设备数据同步'}
               </p>
             </div>
             <div className="flex flex-col gap-2">
-              {apiHealthy !== false && (
-                <button
-                  className="px-4 py-2 rounded text-[12px] font-medium"
-                  style={{ color: '#1e1e1e', backgroundColor: '#dcb862' }}
-                  onClick={() => window.location.href = '/#/login'}
-                >
-                  前往登录
-                </button>
-              )}
+              <button
+                className="px-4 py-2 rounded text-[12px] font-medium"
+                style={{ color: '#1e1e1e', backgroundColor: '#dcb862' }}
+                onClick={() => window.location.href = '/#/login'}
+              >
+                注册 / 登录
+              </button>
               <button
                 className="px-4 py-2 rounded text-[11px]"
                 style={{ color: '#aaa', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}
