@@ -14,7 +14,7 @@ export const localAuthRouter = createRouter({
   register: publicQuery
     .input(
       z.object({
-        username: z.string().min(3).max(32).regex(/^[a-zA-Z0-9_\u4e00-\u9fff]+$/),
+        username: z.string().min(3).max(32),
         password: z.string().min(6).max(64),
         name: z.string().min(1).max(32).optional(),
       })
