@@ -11,6 +11,8 @@ export function getDb() {
     pool = new Pool({
       connectionString: env.databaseUrl,
       ssl: env.isProduction ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 20000,
+      idleTimeoutMillis: 30000,
     });
     instance = drizzle(pool, { schema });
   }
