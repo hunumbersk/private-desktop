@@ -5,35 +5,46 @@ import { TRPCProvider } from '@/providers/trpc'
 import './index.css'
 import App from './App.tsx'
 
-// ====== CRITICAL: Clean corrupted localStorage before React starts ======
-(function sanitizeStorage() {
-  const keys = [
+// ====== CRITICAL: Nuke all localStorage to fix .map() crashes ======
+// Remove ALL keys that could contain corrupted data
+(function nukeStorage() {
+  const prefixes = [
+    'private-desktop',
+    'private-dialogue',
+    'kimi-api',
+  ];
+  const exactKeys = [
     'private-desktop-items',
     'private-desktop-notes-v2',
     'private-desktop-cookbook-v2',
+    'private-desktop-settings',
+    'private-desktop-auto-backup',
+    'private-desktop-local-auth',
+    'private-desktop-mode',
+    'private-desktop-local-username',
     'private-dialogue-messages',
+    'private-dialogue-active',
+    'kimi-api-key',
   ];
-  for (const key of keys) {
-    try {
-      const val = localStorage.getItem(key);
-      if (val === null) continue;
-      const parsed = JSON.parse(val);
-      if (parsed === null || typeof parsed === 'string') {
-        localStorage.removeItem(key); continue;
-      }
-      if (key === 'private-desktop-notes-v2') {
-        if (Array.isArray(parsed) || typeof parsed !== 'object') {
-          localStorage.removeItem(key); continue;
-        }
-      } else {
-        if (!Array.isArray(parsed)) {
-          localStorage.removeItem(key); continue;
-        }
-      }
-    } catch {
-      localStorage.removeItem(key);
-    }
+  // Remove by exact match
+  for (const key of exactKeys) {
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
   }
+  // Remove by prefix
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    try {
+      const key = localStorage.key(i);
+      if (key) {
+        for (const prefix of prefixes) {
+          if (key.startsWith(prefix)) {
+            localStorage.removeItem(key);
+            break;
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  }
+  console.log('[nuke] All localStorage cleared');
 })();
 
 // Error boundary to catch startup errors
