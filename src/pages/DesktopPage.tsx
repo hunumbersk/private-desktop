@@ -183,7 +183,9 @@ export default function DesktopPage() {
       )}
 
       {/* Text Viewer */}
-      <TextViewer title={viewerState?.title || ''} content={viewerState?.content || ''} onClose={() => setViewerState(null)} />
+      {viewerState && (
+        <TextViewer title={viewerState.title} content={viewerState.content} onClose={() => setViewerState(null)} />
+      )}
 
       {/* Cat Desktop */}
       <CatDesktop onClick={() => setDialogueState(dialogueState === 'minimized' ? 'normal' : 'minimized')} />

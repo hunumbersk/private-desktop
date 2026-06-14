@@ -11,11 +11,9 @@ services:
         value: production
       - key: PORT
         value: "3000"
-      # Turso SQLite database - persistent across deploys
+      # Supabase PostgreSQL
+      # Format: postgresql://postgres:[password]@db.pgkgkvvgfxmxtbhcdyhj.supabase.co:5432/postgres
       - key: DATABASE_URL
-        value: libsql://private-desktop-sxd2215.turso.io
-      # Get token: turso db tokens create private-desktop
-      - key: DATABASE_AUTH_TOKEN
         sync: false
       # Kimi OAuth optional
       - key: APP_ID

@@ -7,7 +7,6 @@ import { createContext } from "./context";
 import { env } from "./lib/env";
 import { createOAuthCallbackHandler } from "./kimi/auth";
 import { Paths } from "@contracts/constants";
-import { initDatabase } from "./queries/connection";
 
 const app = new Hono<{ Bindings: HttpBindings }>();
 
@@ -26,9 +25,6 @@ app.all("/api/*", (c) => c.json({ error: "Not Found" }, 404));
 export default app;
 
 if (env.isProduction) {
-  // Initialize database tables before starting server
-  await initDatabase();
-
   const { serve } = await import("@hono/node-server");
   const { serveStaticFiles } = await import("./lib/vite");
   serveStaticFiles(app);
