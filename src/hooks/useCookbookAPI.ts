@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { trpc } from '@/providers/trpc';
 
 export interface RecipeItem {
   recipeId: string;
@@ -14,30 +15,37 @@ export interface RecipeItem {
   linkUrl: string;
 }
 
-/** Hook to sync cookbook with the cloud backend - disabled in static mode */
 export function useCookbookAPI() {
-  const sync = useCallback((_recipes: RecipeItem[]) => {
-    return Promise.resolve({ success: true });
-  }, []);
+  const utils = trpc.useUtils();
+  const listQuery = trpc.cookbook.list.useQuery(undefined, { retry: 1, staleTime: 30000 });
+  const syncMutation = trpc.cookbook.sync.useMutation({
+    onSuccess: () => utils.cookbook.list.invalidate(),
+  });
+  const createMutation = trpc.cookbook.create.useMutation({
+    onSuccess: () => utils.cookbook.list.invalidate(),
+  });
+  const deleteMutation = trpc.cookbook.delete.useMutation({
+    onSuccess: () => utils.cookbook.list.invalidate(),
+  });
 
-  const create = useCallback((_recipe: RecipeItem) => {
-    return Promise.resolve({ success: true });
-  }, []);
+  const sync = useCallback((recipes: RecipeItem[]) => {
+    return syncMutation.mutateAsync(recipes);
+  }, [syncMutation]);
 
-  const remove = useCallback((_recipeId: string) => {
-    return Promise.resolve({ success: true });
-  }, []);
+  const create = useCallback((recipe: RecipeItem) => {
+    return createMutation.mutateAsync(recipe as any);
+  }, [createMutation]);
 
-  const refetch = useCallback(() => {
-    return Promise.resolve({ data: [] as any[] });
-  }, []);
+  const remove = useCallback((recipeId: string) => {
+    return deleteMutation.mutateAsync({ recipeId });
+  }, [deleteMutation]);
 
   return {
-    recipes: [],
-    isLoading: false,
+    recipes: listQuery.data || [],
+    isLoading: listQuery.isLoading,
     sync,
     create,
     remove,
-    refetch,
+    refetch: listQuery.refetch,
   };
 }

@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { trpc } from '@/providers/trpc';
 
 export interface NoteItem {
   itemId: string;
@@ -18,36 +19,46 @@ export interface NoteItem {
   y: number | null;
 }
 
-/** Hook to sync notes with the cloud backend - disabled in static mode */
 export function useNotesAPI() {
-  const sync = useCallback((_notes: NoteItem[]) => {
-    return Promise.resolve({ success: true });
-  }, []);
+  const utils = trpc.useUtils();
+  const listQuery = trpc.note.list.useQuery(undefined, { retry: 1, staleTime: 30000 });
+  const syncMutation = trpc.note.sync.useMutation({
+    onSuccess: () => utils.note.list.invalidate(),
+  });
+  const createMutation = trpc.note.create.useMutation({
+    onSuccess: () => utils.note.list.invalidate(),
+  });
+  const updateMutation = trpc.note.update.useMutation({
+    onSuccess: () => utils.note.list.invalidate(),
+  });
+  const deleteMutation = trpc.note.delete.useMutation({
+    onSuccess: () => utils.note.list.invalidate(),
+  });
 
-  const create = useCallback((_note: NoteItem) => {
-    return Promise.resolve({ success: true });
-  }, []);
+  const sync = useCallback((notes: NoteItem[]) => {
+    return syncMutation.mutateAsync(notes as any);
+  }, [syncMutation]);
 
-  const update = useCallback((_itemId: string, _data: Partial<NoteItem>) => {
-    return Promise.resolve({ success: true });
-  }, []);
+  const create = useCallback((note: NoteItem) => {
+    return createMutation.mutateAsync(note as any);
+  }, [createMutation]);
 
-  const remove = useCallback((_itemId: string) => {
-    return Promise.resolve({ success: true });
-  }, []);
+  const update = useCallback((itemId: string, data: Partial<NoteItem>) => {
+    return updateMutation.mutateAsync({ itemId, ...data } as any);
+  }, [updateMutation]);
 
-  const refetch = useCallback(() => {
-    return Promise.resolve({ data: [] as any[] });
-  }, []);
+  const remove = useCallback((itemId: string) => {
+    return deleteMutation.mutateAsync({ itemId });
+  }, [deleteMutation]);
 
   return {
-    notes: [],
-    isLoading: false,
-    isError: false,
+    notes: listQuery.data || [],
+    isLoading: listQuery.isLoading,
+    isError: listQuery.isError,
     sync,
     create,
     update,
     remove,
-    refetch,
+    refetch: listQuery.refetch,
   };
 }

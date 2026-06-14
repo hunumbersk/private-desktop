@@ -1,71 +1,108 @@
 # Render 部署指南
 
-## 部署方式一：使用 Render Dashboard（推荐）
+## 前置准备
 
-### 1. 创建 PostgreSQL 数据库
+1. 注册/登录 [Render](https://dashboard.render.com)
+2. 代码已推送到 GitHub（或直接在 Render 上传）
 
-1. 登录 [Render Dashboard](https://dashboard.render.com)
-2. 点击 "New" -> "PostgreSQL"
-3. 填写信息：
-   - Name: `private-desktop-db`
-   - Database: `private_desktop`
-   - User: `private_desktop`
-4. 点击 "Create Database"
-5. 创建完成后，复制 **Internal Database URL** 或 **External Database URL**
+---
 
-### 2. 创建 Web Service
+## 步骤一：创建 PostgreSQL 数据库
 
-1. 点击 "New" -> "Web Service"
-2. 连接你的 GitHub 仓库
+1. 在 Render Dashboard 点击 **"New"** -> **"PostgreSQL"**
+2. 填写配置：
+   - **Name**: `private-desktop-db`
+   - **Database**: `private_desktop`
+   - **User**: `private_desktop`
+3. 点击 **"Create Database"**
+4. 等待状态变为 **"Available"**（约 1-2 分钟）
+5. 点击创建好的数据库，复制 **Internal Database URL**（格式类似：
+   `postgresql://private_desktop:xxxxx@dpg-xxxxx-a.oregon-postgres.render.com/private_desktop`）
+
+---
+
+## 步骤二：创建 Web Service
+
+1. 点击 **"New"** -> **"Web Service"**
+2. 选择部署来源：
+   - 如果使用 GitHub：点击 **"Build and deploy from a Git repository"**，连接你的 GitHub 仓库
+   - 如果不上传 GitHub：选择 **"Deploy from image"** 或手动上传
+
 3. 填写配置：
-   - **Name**: `private-desktop`
-   - **Runtime**: Node
-   - **Build Command**: `npm install && npm run build && npm run db:migrate`
-   - **Start Command**: `npm start`
-   - **Plan**: Free
+   | 配置项 | 值 |
+   |--------|-----|
+   | **Name** | `private-desktop` |
+   | **Runtime** | `Node` |
+   | **Region** | 选择离你最近的（如 Oregon） |
+   | **Branch** | `main` |
+   | **Root Directory** | 留空（根目录） |
+   | **Build Command** | `npm install && npm run build && npm run db:migrate` |
+   | **Start Command** | `npm start` |
+   | **Plan** | `Free` |
 
-### 3. 配置环境变量
+4. 点击 **"Advanced"** 展开高级设置
+5. 添加环境变量：
 
-在 Web Service 的 "Environment" 标签页添加：
+   | Key | Value | 说明 |
+   |-----|-------|------|
+   | `NODE_ENV` | `production` | 必需 |
+   | `DATABASE_URL` | 粘贴步骤一复制的 Internal Database URL | 必需 |
+   | `APP_ID` | 留空 | 可选（Kimi OAuth） |
+   | `APP_SECRET` | 留空 | 可选（Kimi OAuth） |
+   | `KIMI_AUTH_URL` | 留空 | 可选 |
+   | `KIMI_OPEN_URL` | 留空 | 可选 |
 
-| Key | Value |
-|-----|-------|
-| `NODE_ENV` | `production` |
-| `DATABASE_URL` | 从 PostgreSQL 服务复制的 Connection String |
-| `APP_ID` | （可选）Kimi OAuth App ID |
-| `APP_SECRET` | （可选）Kimi OAuth App Secret |
-| `KIMI_AUTH_URL` | （可选）https://agents.replit.com/oauth2 |
-| `KIMI_OPEN_URL` | （可选）https://agents.replit.com/openapi |
+6. 点击 **"Create Web Service"**
 
-> **注意**: Kimi OAuth 配置是可选的，本地认证模式（localStorage）无需这些配置即可工作。
+---
 
-### 4. 部署
+## 步骤三：等待部署完成
 
-点击 "Create Web Service"，Render 会自动构建并部署。
+1. Render 会自动执行：
+   - `npm install` - 安装依赖
+   - `npm run build` - 构建前后端
+   - `npm run db:migrate` - 数据库迁移
+   - `npm start` - 启动服务
 
-## 部署方式二：使用 Render Blueprint (render.yaml)
+2. 在 **"Logs"** 标签页查看部署进度
+3. 部署成功后，点击顶部的 URL（如 `https://private-desktop-xxxxx.onrender.com`）访问应用
 
-1. 确保 `render.yaml` 已提交到 Git 仓库根目录
-2. 在 Render Dashboard 点击 "New" -> "Blueprint"
-3. 连接 GitHub 仓库
-4. Render 会自动读取 `render.yaml` 创建所有服务
+---
 
-## 首次部署后
+## 常见问题
 
-1. 数据库迁移会在构建时自动运行
-2. 应用启动后会监听 `PORT` 环境变量指定的端口（默认 3000）
-3. 访问分配的 `.onrender.com` 域名即可使用
+### 1. 数据库迁移失败
 
-## 故障排除
+如果迁移命令报错，可以先跳过迁移，部署成功后在 Render Shell 中手动执行：
 
-### 数据库连接失败
-- 检查 `DATABASE_URL` 是否正确
-- 确保 PostgreSQL 服务状态为 "Available"
+```bash
+# 在 Render Dashboard -> Shell 中执行
+npx drizzle-kit migrate
+```
 
-### 构建失败
-- 检查构建日志中的错误信息
-- 确保 `npm run build` 在本地能成功运行
+### 2. 构建超时（Free 计划 15 分钟限制）
 
-### 迁移失败
-- 手动在 Render Shell 中运行 `npx drizzle-kit migrate`
-- 检查数据库权限是否正确
+如果构建超时，可以拆分命令：
+- **Build Command**: `npm install && npm run build`
+- 然后在 **Shell** 中手动运行 `npm run db:migrate`
+
+### 3. Free 计划的限制
+
+- 服务在 15 分钟无活动后会休眠
+- 首次访问可能需要 30 秒唤醒
+- 每月 750 小时免费额度
+
+### 4. 不需要 Kimi OAuth
+
+如果不填写 `APP_ID` 等 OAuth 环境变量：
+- 用户仍然可以使用 **账号注册/登录** 功能
+- 所有数据存储在 **PostgreSQL** 中，跨设备同步
+- 登录页面不会出现 Kimi OAuth 按钮
+
+---
+
+## 升级计划
+
+如果 Free 计划不够用，可以在 **Settings** -> **Plan** 中升级到：
+- **Starter** ($7/月)：无休眠，持续运行
+- **Standard** ($25/月)：更高性能，更多资源

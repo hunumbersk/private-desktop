@@ -2,18 +2,10 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Minus, Square, X, Send, MessageCircle, Download,
   Sparkles, Brain, Lightbulb, Tag, FileText,
-  Hash, ArrowRight, Loader2,
+  Hash, ArrowRight, Loader2, Key, Trash2,
 } from 'lucide-react';
 import { useDialogueMessages } from '@/hooks/useDesktopStore';
-
-const aiResponses: string[] = [
-  '收到。',
-  '已记录。',
-  '了解了。',
-  '好的，已保存。',
-  '嗯，记下了。',
-  '明白。',
-];
+import { useKimiAPI, loadAPIKey, saveAPIKey, type ChatMessage } from '@/hooks/useKimiAPI';
 
 interface TerminalDialogProps {
   onClose: () => void;
@@ -22,13 +14,17 @@ interface TerminalDialogProps {
   onToggleMaximize?: () => void;
 }
 
-// AI message type
 type AIAction = { label: string; action: () => void };
 interface AIMessage {
   type: 'user' | 'analysis' | 'suggestion';
   content: string;
   actions?: AIAction[];
 }
+
+const systemPrompt: ChatMessage = {
+  role: 'system',
+  content: '你是一个有帮助的 AI 助手。请用中文回复，保持简洁友好。',
+};
 
 export default function TerminalDialog({
   onClose,
@@ -37,6 +33,7 @@ export default function TerminalDialog({
   onToggleMaximize,
 }: TerminalDialogProps) {
   const { messages, addMessage, clearMessages, exportMessages } = useDialogueMessages();
+  const { sendMessage: sendToAI, isStreaming, abort, hasKey } = useKimiAPI();
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [showDownloadConfirm, setShowDownloadConfirm] = useState(false);
@@ -45,6 +42,8 @@ export default function TerminalDialog({
   const [aiMessages, setAiMessages] = useState<AIMessage[]>([]);
   const [isAIProcessing, setIsAIProcessing] = useState(false);
   const [aiInput, setAiInput] = useState('');
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showKeyInput, setShowKeyInput] = useState(false);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -53,6 +52,7 @@ export default function TerminalDialog({
   const dragState = useRef({ isDragging: false, offsetX: 0, offsetY: 0 });
   const positionRef = useRef({ x: 0, y: 0 });
   const hasWelcomed = useRef(false);
+  const streamingTextRef = useRef('');
 
   const historyMessages = messages.length > 0 ? messages.slice(0, -1) : [];
   const currentMessages = messages.length > 0 ? messages.slice(-1) : [];
@@ -64,17 +64,18 @@ export default function TerminalDialog({
       setTimeout(() => {
         addMessage({
           role: 'ai',
-          content: '你好，信息都保存在这个网页里，不在你的设备上。\n你可以直接输入，也可以从外部粘贴或拖拽文件进来。点击右侧 Sparkles 图标可打开AI助手。',
+          content: hasKey
+            ? '你好！我是 Kimi AI 助手，可以直接对话。点击右侧 Sparkles 图标打开 AI 面板。'
+            : '你好！点击右侧钥匙图标设置 API Key 后即可开始 AI 对话。',
         });
       }, 200);
     }
-  }, [messages.length, addMessage]);
+  }, [messages.length, addMessage, hasKey]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
   useEffect(() => { aiEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [aiMessages, isAIProcessing]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  // Drag
   const handleTitleMouseDown = useCallback((e: React.MouseEvent) => {
     if (isMaximized) return;
     if (e.button !== 0) return;
@@ -95,13 +96,16 @@ export default function TerminalDialog({
     window.addEventListener('mouseup', onUp);
   }, [isMaximized]);
 
-  // Send message
-  const sendMessage = useCallback(() => {
+  // Send message with real AI
+  const sendMessage = useCallback(async () => {
     const text = inputValue.trim();
     if (!text) return;
+    if (!hasKey) { setShowKeyInput(true); return; }
+
     const isCommand = text.startsWith('/');
     addMessage({ role: 'user', content: text, isCommand });
     setInputValue('');
+
     if (isCommand) {
       const cmd = text.slice(1).toLowerCase();
       setTimeout(() => {
@@ -113,16 +117,37 @@ export default function TerminalDialog({
       }, 150);
       return;
     }
+
+    // Build message history for AI
+    const chatMessages: ChatMessage[] = [systemPrompt];
+    // Add last 10 messages for context
+    messages.slice(-10).forEach(m => {
+      chatMessages.push({ role: m.role === 'user' ? 'user' : 'assistant', content: m.content });
+    });
+    chatMessages.push({ role: 'user', content: text });
+
     setIsTyping(true);
-    setTimeout(() => {
+    streamingTextRef.current = '';
+
+    try {
+      await sendToAI(chatMessages, (chunk) => {
+        streamingTextRef.current += chunk;
+        // Update the last AI message in real-time
+        setIsTyping(false);
+      });
+      // Add the complete response
+      if (streamingTextRef.current) {
+        addMessage({ role: 'ai', content: streamingTextRef.current });
+      }
+    } catch (err: any) {
+      addMessage({ role: 'ai', content: `抱歉，AI 服务暂时不可用：${err.message || '未知错误'}` });
+    } finally {
       setIsTyping(false);
-      addMessage({ role: 'ai', content: aiResponses[Math.floor(Math.random() * aiResponses.length)] });
-    }, 300 + Math.random() * 400);
-  }, [inputValue, addMessage, clearMessages]);
+    }
+  }, [inputValue, addMessage, clearMessages, hasKey, messages, sendToAI]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); sendMessage(); } };
 
-  // Paste
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const pastedFiles = Array.from(e.clipboardData.files);
     if (pastedFiles.length > 0) {
@@ -153,7 +178,7 @@ export default function TerminalDialog({
     });
   }, [addMessage]);
 
-  // AI Assistant functions
+  // AI Assistant panel functions
   const simulateAI = (processFn: () => AIMessage[]) => {
     setIsAIProcessing(true);
     setTimeout(() => {
@@ -167,7 +192,7 @@ export default function TerminalDialog({
 
   const handleAIAnalyze = () => {
     if (messages.length === 0) {
-      setAiMessages(prev => [...prev, { type: 'analysis', content: '暂无对话内容可分析。开始对话后，我可以帮你分析内容。' }]);
+      setAiMessages(prev => [...prev, { type: 'analysis', content: '暂无对话内容可分析。' }]);
       return;
     }
     simulateAI(() => {
@@ -176,15 +201,15 @@ export default function TerminalDialog({
       const totalLen = messages.reduce((sum, m) => sum + m.content.length, 0);
       const keywords = extractKeywords(messages.filter(m => m.role === 'user').map(m => m.content).join(' '));
       return [
-        { type: 'analysis', content: `📊 对话分析\n\n• 消息总数：${messages.length} 条\n• 你的消息：${userMsgCount} 条\n• 助手回复：${aiMsgCount} 条\n• 总字数：${totalLen} 字` },
-        { type: 'suggestion', content: '💡 关键词', actions: keywords.slice(0, 6).map(k => ({ label: `#${k}`, action: () => {} })) },
+        { type: 'analysis', content: `对话分析\n\n消息：${messages.length} 条 | 你的：${userMsgCount} 条 | AI：${aiMsgCount} 条 | 总字数：${totalLen}` },
+        { type: 'suggestion', content: '关键词', actions: keywords.slice(0, 6).map(k => ({ label: `#${k}`, action: () => {} })) },
       ];
     });
   };
 
   const handleAISummarize = () => {
     if (messages.length === 0) {
-      setAiMessages(prev => [...prev, { type: 'analysis', content: '暂无对话内容。' }]);
+      setAiMessages(prev => [...prev, { type: 'analysis', content: '暂无内容。' }]);
       return;
     }
     simulateAI(() => {
@@ -192,43 +217,22 @@ export default function TerminalDialog({
       const recent = userContents.slice(-5);
       return [{
         type: 'analysis',
-        content: `📝 对话摘要\n\n最近 ${recent.length} 条你的消息：\n${recent.map((c, i) => `${i + 1}. ${c.slice(0, 60)}${c.length > 60 ? '...' : ''}`).join('\n')}\n\n关键词：${extractKeywords(userContents.join(' ')).slice(0, 5).join('、') || '暂无明确关键词'}`,
+        content: `对话摘要\n\n最近 ${recent.length} 条消息：\n${recent.map((c, i) => `${i + 1}. ${c.slice(0, 60)}${c.length > 60 ? '...' : ''}`).join('\n')}\n\n关键词：${extractKeywords(userContents.join(' ')).slice(0, 5).join('、') || '暂无'}`,
       }];
     });
   };
 
   const handleAISuggestReply = () => {
     simulateAI(() => {
-      const suggestions = [
-        '能否详细说明一下？',
-        '这个内容很有帮助，谢谢。',
-        '请帮我总结一下要点。',
-        '还有其他相关信息吗？',
-        '能否保存这条信息到笔记？',
-      ];
-      return [{
-        type: 'suggestion',
-        content: '✨ 建议回复',
-        actions: suggestions.slice(0, 4).map(s => ({
-          label: s.length > 12 ? s.slice(0, 12) + '...' : s,
-          action: () => {
-            addMessage({ role: 'user', content: s });
-            setIsTyping(true);
-            setTimeout(() => { setIsTyping(false); addMessage({ role: 'ai', content: aiResponses[Math.floor(Math.random() * aiResponses.length)] }); }, 400 + Math.random() * 400);
-          },
-        })),
-      }];
+      const suggestions = ['能否详细说明？', '这个很有帮助，谢谢。', '请帮我总结要点。', '还有其他信息吗？'];
+      return [{ type: 'suggestion', content: '建议回复', actions: suggestions.slice(0, 4).map(s => ({ label: s.length > 12 ? s.slice(0, 12) + '...' : s, action: () => { addMessage({ role: 'user', content: s }); } })) }];
     });
   };
 
   const handleAIKeywords = () => {
-    if (messages.length === 0) { setAiMessages(prev => [...prev, { type: 'analysis', content: '暂无内容可分析。' }]); return; }
-    const allText = messages.map(m => m.content).join(' ');
-    const keywords = extractKeywords(allText);
-    setAiMessages(prev => [...prev, {
-      type: 'suggestion',
-      content: `🔑 从对话中提取的关键词：\n\n${keywords.slice(0, 8).map((k, i) => `${i + 1}. ${k}`).join('\n') || '暂无明确关键词'}`,
-    }]);
+    if (messages.length === 0) { setAiMessages(prev => [...prev, { type: 'analysis', content: '暂无内容。' }]); return; }
+    const keywords = extractKeywords(messages.map(m => m.content).join(' '));
+    setAiMessages(prev => [...prev, { type: 'suggestion', content: `关键词：\n\n${keywords.slice(0, 8).map((k, i) => `${i + 1}. ${k}`).join('\n') || '暂无'}` }]);
   };
 
   const handleAIChatSubmit = () => {
@@ -239,53 +243,54 @@ export default function TerminalDialog({
     setIsAIProcessing(true);
     setTimeout(() => {
       setIsAIProcessing(false);
-      if (text.includes('总结') || text.includes('摘要')) {
-        handleAISummarize();
-      } else if (text.includes('关键词') || text.includes('标签')) {
-        handleAIKeywords();
-      } else if (text.includes('建议') || text.includes('回复')) {
-        handleAISuggestReply();
-      } else {
-        setAiMessages(prev => [...prev, { type: 'analysis', content: `已收到。我可以帮你：\n\n• 分析对话内容\n• 总结要点\n• 提取关键词\n• 建议回复\n\n点击上方按钮或继续输入指令。` }]);
-      }
+      if (text.includes('总结') || text.includes('摘要')) handleAISummarize();
+      else if (text.includes('关键词') || text.includes('标签')) handleAIKeywords();
+      else if (text.includes('建议') || text.includes('回复')) handleAISuggestReply();
+      else setAiMessages(prev => [...prev, { type: 'analysis', content: '我可以帮你：分析对话、总结要点、提取关键词、建议回复。' }]);
     }, 400);
   };
 
   const handleConfirmDownload = () => { setShowDownloadConfirm(false); exportMessages(); addMessage({ role: 'ai', content: '对话已导出。' }); };
 
+  const handleSaveApiKey = () => {
+    if (apiKeyInput.trim()) {
+      saveAPIKey(apiKeyInput.trim());
+      setShowKeyInput(false);
+      setApiKeyInput('');
+      window.location.reload();
+    }
+  };
+
+  const handleClearApiKey = () => {
+    saveAPIKey('');
+    window.location.reload();
+  };
+
   return (
-    <div
-      ref={dialogRef}
-      className="fixed flex flex-col"
-      style={{
-        width: isMaximized ? 'calc(100% - 220px)' : showAIPanel ? 'min(780px, 92vw)' : 'min(580px, 90vw)',
-        height: isMaximized ? 'calc(100% - 40px - 26px)' : 'min(520px, 80vh)',
-        top: isMaximized ? '40px' : positionRef.current.y || '50%',
-        left: isMaximized ? '220px' : positionRef.current.x || '50%',
-        transform: isMaximized || positionRef.current.x !== 0 ? 'none' : 'translate(-50%, -40%)',
-        backgroundColor: 'rgba(45,45,45,0.95)', backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px',
-        zIndex: 100, overflow: 'hidden',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06)',
-      }}
-      onDrop={handleDrop}
-    >
+    <div ref={dialogRef} className="fixed flex flex-col" style={{
+      width: isMaximized ? 'calc(100% - 220px)' : showAIPanel ? 'min(780px, 92vw)' : 'min(580px, 90vw)',
+      height: isMaximized ? 'calc(100% - 40px - 26px)' : 'min(520px, 80vh)',
+      top: isMaximized ? '40px' : positionRef.current.y || '50%',
+      left: isMaximized ? '220px' : positionRef.current.x || '50%',
+      transform: isMaximized || positionRef.current.x !== 0 ? 'none' : 'translate(-50%, -40%)',
+      backgroundColor: 'rgba(45,45,45,0.95)', backdropFilter: 'blur(16px)',
+      border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px',
+      zIndex: 100, overflow: 'hidden',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+    }} onDrop={handleDrop}>
       {/* Title Bar */}
       <div className="flex items-center justify-between select-none shrink-0" style={{ height: '34px', backgroundColor: '#333', borderBottom: '1px solid rgba(255,255,255,0.06)', cursor: isMaximized ? 'default' : 'grab', padding: '0 12px' }} onMouseDown={handleTitleMouseDown}>
         <div className="flex items-center gap-2">
           <MessageCircle size={13} color="#569cd6" />
-          <span className="text-[12px]" style={{ color: '#ccc' }}>对话</span>
+          <span className="text-[12px]" style={{ color: '#ccc' }}>对话 {hasKey ? '(Kimi AI)' : '(未配置 API Key)'}</span>
         </div>
         <div className="flex items-center gap-0.5">
+          {/* API Key toggle */}
+          <button className="w-6 h-6 flex items-center justify-center rounded transition-colors" style={{ color: hasKey ? '#4ec9b0' : '#858585' }} title={hasKey ? 'API Key 已配置' : '设置 API Key'} onClick={() => setShowKeyInput(!showKeyInput)}>
+            <Key size={12} />
+          </button>
           {/* AI toggle */}
-          <button
-            className="w-6 h-6 flex items-center justify-center rounded transition-colors"
-            style={{ color: showAIPanel ? '#c084fc' : '#858585' }}
-            onMouseEnter={(e) => { if (!showAIPanel) e.currentTarget.style.color = '#c084fc'; }}
-            onMouseLeave={(e) => { if (!showAIPanel) e.currentTarget.style.color = '#858585'; }}
-            onClick={() => setShowAIPanel(!showAIPanel)}
-            title="AI助手"
-          >
+          <button className="w-6 h-6 flex items-center justify-center rounded transition-colors" style={{ color: showAIPanel ? '#c084fc' : '#858585' }} onClick={() => setShowAIPanel(!showAIPanel)} title="AI助手">
             <Sparkles size={12} />
           </button>
           <button className="w-6 h-6 flex items-center justify-center rounded transition-colors" style={{ color: '#858585' }} onMouseEnter={(e) => { e.currentTarget.style.color = '#d4d4d4'; }} onMouseLeave={(e) => { e.currentTarget.style.color = '#858585'; }} onClick={onMinimize}><Minus size={12} /></button>
@@ -293,6 +298,17 @@ export default function TerminalDialog({
           <button className="w-6 h-6 flex items-center justify-center rounded transition-colors" style={{ color: '#858585' }} onMouseEnter={(e) => { e.currentTarget.style.color = '#e74c3c'; }} onMouseLeave={(e) => { e.currentTarget.style.color = '#858585'; }} onClick={onClose}><X size={12} /></button>
         </div>
       </div>
+
+      {/* API Key Input Panel */}
+      {showKeyInput && (
+        <div className="shrink-0 px-3 py-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(220,184,98,0.03)' }}>
+          <div className="flex items-center gap-2">
+            <input type="password" value={apiKeyInput} onChange={(e) => setApiKeyInput(e.target.value)} placeholder={hasKey ? '输入新 API Key 替换当前...' : 'sk-...'} className="flex-1 bg-transparent outline-none text-[11px] px-2 py-1 rounded" style={{ color: '#d4d4d4', backgroundColor: '#1e1e1e', border: '1px solid rgba(255,255,255,0.08)' }} />
+            <button className="px-2 py-1 rounded text-[10px]" style={{ color: '#1e1e1e', backgroundColor: '#dcb862' }} onClick={handleSaveApiKey}>保存</button>
+            {hasKey && <button className="px-2 py-1 rounded text-[10px]" style={{ color: '#e74c3c', backgroundColor: 'rgba(231,76,60,0.1)' }} onClick={handleClearApiKey}><Trash2 size={10} /></button>}
+          </div>
+        </div>
+      )}
 
       {/* Body: Chat + AI Panel */}
       <div className="flex flex-1 overflow-hidden">
@@ -311,13 +327,23 @@ export default function TerminalDialog({
                 <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(86,156,214,0.08)' }}>
                   <MessageCircle size={26} color="rgba(86,156,214,0.3)" />
                 </div>
-                <p className="text-[14px] text-center" style={{ color: '#858585' }}>你可以直接输入内容<br />也可以从外部复制粘贴或拖拽文件</p>
+                <p className="text-[14px] text-center" style={{ color: '#858585' }}>
+                  {hasKey ? '输入内容开始 AI 对话' : '点击钥匙图标设置 API Key'}
+                  <br />也可以粘贴或拖拽文件
+                </p>
               </div>
             )}
             {isTyping && (
               <div className="flex justify-start mb-2">
                 <div style={{ padding: '8px 14px', borderRadius: '10px 10px 10px 2px', backgroundColor: 'rgba(255,255,255,0.04)', color: '#858585', fontSize: '13px' }}>
-                  <span className="inline-flex gap-1"><span className="animate-bounce" style={{ animationDelay: '0ms' }}>●</span><span className="animate-bounce" style={{ animationDelay: '150ms' }}>●</span><span className="animate-bounce" style={{ animationDelay: '300ms' }}>●</span></span>
+                  <span className="inline-flex gap-1"><span className="animate-bounce">●</span><span className="animate-bounce" style={{ animationDelay: '150ms' }}>●</span><span className="animate-bounce" style={{ animationDelay: '300ms' }}>●</span></span>
+                </div>
+              </div>
+            )}
+            {isStreaming && (
+              <div className="flex justify-start mb-2">
+                <div style={{ padding: '8px 12px', borderRadius: '10px 10px 10px 2px', backgroundColor: 'rgba(255,255,255,0.04)', color: '#d4d4d4', fontSize: '13px', lineHeight: 1.6, whiteSpace: 'pre-wrap', maxWidth: '80%' }}>
+                  {streamingTextRef.current}<span className="inline-block w-1.5 h-3.5 ml-0.5 animate-pulse" style={{ backgroundColor: '#569cd6' }} />
                 </div>
               </div>
             )}
@@ -326,7 +352,7 @@ export default function TerminalDialog({
 
           {/* Input Area */}
           <div className="flex items-center shrink-0 gap-2" style={{ height: '48px', backgroundColor: '#252526', borderTop: '1px solid rgba(255,255,255,0.06)', padding: '0 14px' }}>
-            <input ref={inputRef} type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder="输入消息，或粘贴/拖拽内容..." className="flex-1 bg-transparent outline-none" style={{ color: '#d4d4d4', fontSize: '13px', padding: '6px 10px', borderRadius: '6px', backgroundColor: '#1e1e1e' }} />
+            <input ref={inputRef} type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} onPaste={handlePaste} placeholder={hasKey ? "输入消息..." : "请先设置 API Key (点击钥匙图标)"} className="flex-1 bg-transparent outline-none" style={{ color: '#d4d4d4', fontSize: '13px', padding: '6px 10px', borderRadius: '6px', backgroundColor: '#1e1e1e' }} />
             {messages.length > 0 && <button className="flex items-center justify-center w-8 h-8 rounded transition-colors shrink-0" style={{ color: '#858585' }} onClick={() => setShowDownloadConfirm(true)}><Download size={14} /></button>}
             <button className="flex items-center justify-center w-8 h-8 rounded transition-colors shrink-0" style={{ color: inputValue.trim() ? '#569cd6' : '#858585' }} onClick={sendMessage}><Send size={15} /></button>
           </div>
@@ -335,7 +361,6 @@ export default function TerminalDialog({
         {/* AI Panel */}
         {showAIPanel && (
           <div className="flex flex-col shrink-0 overflow-hidden" style={{ width: '200px', borderLeft: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(30,30,30,0.5)' }}>
-            {/* AI Header */}
             <div className="flex items-center justify-between px-3 py-2 shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div className="flex items-center gap-1.5">
                 <Sparkles size={12} color="#c084fc" />
@@ -343,16 +368,12 @@ export default function TerminalDialog({
               </div>
               <button className="w-5 h-5 flex items-center justify-center" style={{ color: '#858585' }} onClick={() => setShowAIPanel(false)}><X size={10} /></button>
             </div>
-
-            {/* Quick Actions */}
             <div className="px-2 py-2 shrink-0 grid grid-cols-2 gap-1" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <QuickAIBtn icon={<Brain size={10} />} label="分析" color="#569cd6" onClick={handleAIAnalyze} />
               <QuickAIBtn icon={<FileText size={10} />} label="摘要" color="#c084fc" onClick={handleAISummarize} />
               <QuickAIBtn icon={<Lightbulb size={10} />} label="建议" color="#dcb862" onClick={handleAISuggestReply} />
               <QuickAIBtn icon={<Tag size={10} />} label="关键词" color="#4ec9b0" onClick={handleAIKeywords} />
             </div>
-
-            {/* AI Messages */}
             <div className="flex-1 overflow-y-auto scrollbar-hidden px-2 py-2 space-y-2">
               {aiMessages.length === 0 && !isAIProcessing && (
                 <div className="text-center py-4">
@@ -377,8 +398,6 @@ export default function TerminalDialog({
               )}
               <div ref={aiEndRef} />
             </div>
-
-            {/* AI Input */}
             <div className="flex items-center gap-1 px-2 py-2 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
               <Hash size={10} color="#858585" />
               <input type="text" value={aiInput} onChange={(e) => setAiInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleAIChatSubmit(); }} placeholder="AI指令..." className="flex-1 bg-transparent outline-none text-[11px]" style={{ color: '#d4d4d4' }} />
@@ -425,13 +444,10 @@ function renderMessage(msg: { id: string; role: 'user' | 'ai'; content: string; 
 
 function QuickAIBtn({ icon, label, color, onClick }: { icon: React.ReactNode; label: string; color: string; onClick: () => void }) {
   return (
-    <button
-      className="flex items-center gap-1 px-1.5 py-1 rounded text-[10px] transition-all"
-      style={{ color: '#aaa', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+    <button className="flex items-center gap-1 px-1.5 py-1 rounded text-[10px] transition-all" style={{ color: '#aaa', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
       onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = `${color}15`; e.currentTarget.style.borderColor = `${color}40`; e.currentTarget.style.color = color; }}
       onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#aaa'; }}
-      onClick={onClick}
-    >{icon}{label}</button>
+      onClick={onClick}>{icon}{label}</button>
   );
 }
 

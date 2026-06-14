@@ -5,32 +5,14 @@ import { TRPCProvider } from '@/providers/trpc'
 import './index.css'
 import App from './App.tsx'
 
-// ====== Fix corrupted data: clear only data stores, preserve auth ======
-(function nukeStorage() {
-  // Only clear potentially corrupted data stores
-  // DO NOT clear: local-auth, mode, username, local-users (preserve login state)
-  const dataKeys = [
-    'private-desktop-items',
-    'private-desktop-notes-v2',
-    'private-desktop-cookbook-v2',
-    'private-desktop-settings',
-    'private-desktop-auto-backup',
-    'private-dialogue-messages',
-    'private-dialogue-active',
-  ];
-  for (const key of dataKeys) {
-    try { localStorage.removeItem(key); } catch { /* ignore */ }
-  }
-})();
-
-// Error boundary to catch startup errors - show error details
+// Error boundary - silent recovery with friendly message
 class StartupErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: '' };
   }
   static getDerivedStateFromError(error: unknown) {
-    return { hasError: true, error: String(error) + ' | ' + (error instanceof Error ? error.stack : '') };
+    return { hasError: true, error: String(error) };
   }
   render() {
     if (this.state.hasError) {
@@ -46,15 +28,9 @@ class StartupErrorBoundary extends Component<{ children: ReactNode }, { hasError
   }
 }
 
-// Global error handler - log only, don't show on page
-window.addEventListener('error', (e) => {
-  console.error('[Global Error]', e.error);
-});
-
-// Catch unhandled promise rejections - log only
-window.addEventListener('unhandledrejection', (e) => {
-  console.error('[Unhandled Promise]', e.reason);
-});
+// Silent error handlers
+window.addEventListener('error', (e) => { console.error('[Global Error]', e.error); });
+window.addEventListener('unhandledrejection', (e) => { console.error('[Unhandled Promise]', e.reason); });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
