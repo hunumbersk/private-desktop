@@ -8,9 +8,12 @@ let instance: ReturnType<typeof drizzle<typeof schema>>;
 
 export function getDb() {
   if (!instance) {
+    const ssl = env.databaseUrl.includes("render.com")
+      ? { rejectUnauthorized: false }
+      : true;
     pool = new Pool({
       connectionString: env.databaseUrl,
-      ssl: true,
+      ssl,
       connectionTimeoutMillis: 20000,
       idleTimeoutMillis: 30000,
     });

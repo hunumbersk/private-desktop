@@ -166,7 +166,21 @@ export default function DesktopPage() {
       </div>
 
       {/* Context Menu */}
-      <ContextMenu x={contextMenu?.x || 0} y={contextMenu?.y || 0} type={contextMenu?.type || null} onClose={() => setContextMenu(null)} onCreateFolder={handleCreateFolder} onCreateFile={handleCreateFile} onDelete={handleDeleteItem} onRename={handleRenameItem} />
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={contextMenu.type === 'item' ? [
+            { label: '打开', action: () => { const item = safeItems.find(i => i.id === contextMenu.itemId); if (item) handleItemDoubleClick(item); setContextMenu(null); } },
+            { label: '重命名', action: handleRenameItem },
+            { label: '删除', action: handleDeleteItem, danger: true },
+          ] : [
+            { label: '新建文件夹', action: handleCreateFolder },
+            { label: '新建文档', action: handleCreateFile },
+          ]}
+        />
+      )}
 
       {/* Text Viewer */}
       <TextViewer title={viewerState?.title || ''} content={viewerState?.content || ''} onClose={() => setViewerState(null)} />

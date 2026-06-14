@@ -48,11 +48,11 @@ function loadItems(): DesktopItem[] {
 
 function getDefaultItems(): DesktopItem[] {
   return [
-    { id: 'item-1', name: '对话.txt', type: 'text', icon: 'file-text', x: 40, y: 40 },
+    { id: 'item-1', name: '对话.txt', type: 'text', icon: 'file-text', x: 40, y: 40, content: '欢迎使用私密虚拟桌面！\n\n你可以在这里记录任何想法，所有数据都保存在浏览器本地。\n\n功能介绍：\n- 双击打开文件和文件夹\n- 拖拽文件到桌面来导入\n- 右键点击桌面空白处创建新文件\n- 右下角猫咪图标打开AI对话助手\n- 顶部状态栏显示当前用户信息\n\n所有内容自动保存到本地存储。' },
     { id: 'item-2', name: '文档', type: 'folder', icon: 'folder', x: 40, y: 140 },
     { id: 'item-3', name: '图片', type: 'folder', icon: 'folder', x: 40, y: 240 },
-    { id: 'item-4', name: '菜谱本', type: 'text', icon: 'file-text', x: 140, y: 40 },
-    { id: 'item-5', name: '阅读清单', type: 'text', icon: 'file-text', x: 140, y: 140 },
+    { id: 'item-4', name: '菜谱本', type: 'text', icon: 'file-text', x: 140, y: 40, content: '点击底部状态栏的"记事本"或"菜谱本"图标打开对应应用。\n\n菜谱本包含40道精选菜谱，涵盖各种口味和烹饪方式。\n\n记事本支持创建文稿、文件夹和快照管理。' },
+    { id: 'item-5', name: '阅读清单', type: 'text', icon: 'file-text', x: 140, y: 140, content: '我的阅读清单\n\n[ ] 《深度工作》 - 卡尔·纽波特\n[ ] 《原子习惯》 - 詹姆斯·克利尔\n[ ] 《思考，快与慢》 - 丹尼尔·卡尼曼\n[ ] 《纳瓦尔宝典》 - 埃里克·乔根森\n[ ] 《百年孤独》 - 加西亚·马尔克斯\n\n在阅读的书：\n[→] 《黑客与画家》 - 保罗·格雷厄姆\n\n已读完：\n[x] 《程序员修炼之道》\n[x] 《代码大全》' },
   ];
 }
 

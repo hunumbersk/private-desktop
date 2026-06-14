@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, useRef } from "react";
-import { trpc } from "@/providers/trpc";
 
 const LOCAL_AUTH_KEY = "private-desktop-local-auth";
 const LOCAL_MODE_KEY = "private-desktop-mode";
 const LOCAL_USERNAME_KEY = "private-desktop-local-username";
+const LOCAL_USERS_KEY = "private-desktop-local-users"; // Store local-only accounts
 
 export interface AuthUser {
   id: number;
@@ -54,23 +54,44 @@ function setLocalUsername(username: string | null) {
   } catch { /* ignore */ }
 }
 
+// ====== Pure localStorage account management (no backend needed) ======
+interface LocalAccount {
+  username: string;
+  password: string; // plaintext for simplicity in local-only mode
+  name: string;
+  createdAt: number;
+}
+
+function getLocalAccounts(): Record<string, LocalAccount> {
+  try {
+    const stored = localStorage.getItem(LOCAL_USERS_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && typeof parsed === "object") return parsed;
+    }
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveLocalAccount(account: LocalAccount) {
+  try {
+    const accounts = getLocalAccounts();
+    accounts[account.username] = account;
+    localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(accounts));
+  } catch { /* ignore */ }
+}
+
+function findLocalAccount(username: string): LocalAccount | null {
+  return getLocalAccounts()[username] || null;
+}
+
 export function useAuth() {
   const [localUser, setLocalUser] = useState<AuthUser | null>(getLocalAuth);
   const [isReady, setIsReady] = useState(false);
   const [apiHealthy, setApiHealthy] = useState<boolean | null>(null);
   const initDone = useRef(false);
 
-  const {
-    data: apiUser,
-    isLoading: apiLoading,
-    error: apiError,
-  } = trpc.auth.me.useQuery(undefined, {
-    retry: 1,
-    refetchOnWindowFocus: false,
-    staleTime: 60000,
-  });
-
-  // Initialize auth state
+  // Initialize auth state - pure local mode, no API calls
   useEffect(() => {
     if (initDone.current) return;
     initDone.current = true;
@@ -85,81 +106,62 @@ export function useAuth() {
       } else {
         setStoredMode(null);
       }
-      setIsReady(true);
-    } else {
-      const timer = setTimeout(() => setIsReady(true), 800);
-      return () => clearTimeout(timer);
     }
+    setIsReady(true);
   }, []);
 
-  // Handle API response
-  useEffect(() => {
-    if (apiUser !== undefined) {
-      setApiHealthy(true);
-      if (apiUser) {
-        setStoredMode("cloud");
-        setLocalUser(null);
-      }
-      setIsReady(true);
-    } else if (apiError) {
-      setApiHealthy(false);
-      if (getStoredMode() === "cloud") {
-        setStoredMode(null);
-        setLocalAuth(null);
-        setLocalUser(null);
-      }
-      setIsReady(true);
-    }
-  }, [apiUser, apiError]);
-
-  // Local auth mutations
-  const registerMutation = trpc.localAuth.register.useMutation();
-  const loginMutation = trpc.localAuth.login.useMutation();
-
-  const user = apiUser || localUser;
+  const user = localUser; // Always use local user in static deployment
   const isAuthenticated = !!user;
-
-  const logoutMutation = trpc.auth.logout.useMutation();
-  const utils = trpc.useUtils();
 
   const logout = useCallback(() => {
     setLocalAuth(null);
     setLocalUsername(null);
     setStoredMode(null);
     setLocalUser(null);
-    logoutMutation.mutate(undefined, {
-      onSettled: () => {
-        utils.auth.me.invalidate();
-        window.location.reload();
-      },
-    });
-  }, [logoutMutation, utils]);
+    // Reload to reset all state
+    window.location.reload();
+  }, []);
 
-  /** Register a new local account */
+  /** Register a new local account (works offline via localStorage) */
   const register = useCallback(async (username: string, password: string, name?: string) => {
-    const result = await registerMutation.mutateAsync({ username, password, name });
-    return result;
-  }, [registerMutation]);
-
-  /** Login with username/password */
-  const loginLocal = useCallback(async (username: string, password: string) => {
-    const result = await loginMutation.mutateAsync({ username, password });
-    if (result.success && result.user) {
-      const authUser: AuthUser = {
-        id: result.user.id,
-        unionId: `local:${username}`,
-        name: result.user.name || username,
-        username: result.user.username || username,
-        role: result.user.role,
-      };
-      setLocalAuth(authUser);
-      setLocalUsername(username);
-      setStoredMode("local");
-      setLocalUser(authUser);
-      setApiHealthy(true);
+    // Check if username already exists locally
+    const existing = findLocalAccount(username);
+    if (existing) {
+      throw new Error("用户名已存在");
     }
-    return result;
-  }, [loginMutation]);
+    // Save to localStorage
+    saveLocalAccount({
+      username,
+      password,
+      name: name || username,
+      createdAt: Date.now(),
+    });
+    return { success: true };
+  }, []);
+
+  /** Login with username/password (works offline via localStorage) */
+  const loginLocal = useCallback(async (username: string, password: string) => {
+    const account = findLocalAccount(username);
+    if (!account) {
+      throw new Error("用户不存在");
+    }
+    if (account.password !== password) {
+      throw new Error("密码错误");
+    }
+    const authUser: AuthUser = {
+      id: Math.floor(Math.random() * 1000000),
+      unionId: `local:${username}`,
+      name: account.name || username,
+      username,
+      role: "user",
+    };
+    setLocalAuth(authUser);
+    setLocalUsername(username);
+    setStoredMode("local");
+    setLocalUser(authUser);
+    setApiHealthy(false); // Local mode, no API
+    return { success: true, user: authUser };
+  }, []);
 
   /** Enter local mode without login */
   const bypassLogin = useCallback(() => {
@@ -177,7 +179,7 @@ export function useAuth() {
   return {
     user,
     isAuthenticated,
-    isLoading: apiLoading && !isReady,
+    isLoading: !isReady,
     isReady,
     isAdmin: user?.role === "admin",
     apiHealthy,

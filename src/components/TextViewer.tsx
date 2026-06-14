@@ -72,7 +72,17 @@ export default function TextViewer({ title, content, onClose }: TextViewerProps)
           className="flex-1 overflow-auto p-5 font-mono-terminal text-[13px] leading-relaxed"
           style={{ color: '#d4d4d4', whiteSpace: 'pre-wrap' }}
         >
-          {content}
+          {content || (
+            <div className="flex flex-col items-center justify-center h-full gap-3" style={{ minHeight: '200px' }}>
+              <div className="w-12 h-12 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#858585" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              </div>
+              <div className="text-center">
+                <p style={{ color: '#858585', fontSize: 13 }}>此文件暂无内容</p>
+                <p style={{ color: '#555', fontSize: 11, marginTop: 4 }}>这是一个文本查看器</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Download Confirm */}

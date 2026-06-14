@@ -7,7 +7,15 @@ import type { ReactNode } from "react";
 
 export const trpc = createTRPCReact<AppRouter>();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false,
+      staleTime: Infinity,
+    },
+  },
+});
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
@@ -17,6 +25,12 @@ const trpcClient = trpc.createClient({
         return globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
+        }).catch(() => {
+          // Return a valid tRPC batch error response when API is unavailable
+          return new Response(
+            JSON.stringify([{ error: { json: { message: "API unavailable", code: -32603, data: { code: "INTERNAL_SERVER_ERROR", httpStatus: 500 } } } }]),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
         });
       },
     }),
