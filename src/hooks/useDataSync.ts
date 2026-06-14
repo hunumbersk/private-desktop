@@ -82,6 +82,7 @@ export function useDataSync() {
   // Push local notes to cloud
   const pushNotes = useCallback(() => {
     if (!isAuthenticated) return;
+    if (!notesLocal.items || typeof notesLocal.items !== 'object') return;
     const items = notesLocal.items;
     const notes = Object.values(items).map(item => ({
       itemId: item.id,
@@ -106,6 +107,7 @@ export function useDataSync() {
   // Push local recipes to cloud
   const pushRecipes = useCallback(() => {
     if (!isAuthenticated) return;
+    if (!cookbookLocal.recipes || !Array.isArray(cookbookLocal.recipes)) return;
     const recipes = cookbookLocal.recipes.map(r => ({
       recipeId: r.id,
       name: r.name,
