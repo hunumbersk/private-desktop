@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 
 const EXPORT_KEYS = [
   'private-desktop-notes-v2',
@@ -19,20 +19,16 @@ export interface BackupData {
   data: Record<string, string | null>;
 }
 
-/** Auto-backup on interval */
+/** Auto-backup on interval - call this in a top-level component */
 export function useAutoBackup(intervalMinutes: number = 10) {
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
-
   useEffect(() => {
-    timerRef.current = setInterval(() => {
+    const timer = setInterval(() => {
       try {
         const backup = exportDataRaw();
         localStorage.setItem('private-desktop-auto-backup', JSON.stringify(backup));
-        console.log('[AutoBackup] Saved at', new Date().toLocaleString());
       } catch { /* ignore */ }
     }, intervalMinutes * 60 * 1000);
-
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => clearInterval(timer);
   }, [intervalMinutes]);
 }
 
@@ -144,8 +140,6 @@ export function getStorageInfo(): { used: number; total: number; items: number }
 
 /** Hook for data management */
 export function useDataManager() {
-  useAutoBackup(10);
-
   const handleExport = useCallback(() => {
     downloadExport();
   }, []);

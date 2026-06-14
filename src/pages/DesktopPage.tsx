@@ -11,6 +11,7 @@ import ContextMenu from '@/components/ContextMenu';
 import TextViewer from '@/components/TextViewer';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSync } from '@/hooks/useDataSync';
+import { useAutoBackup } from '@/hooks/useDataManager';
 import {
   useDesktopItems,
   type DesktopItem,
@@ -60,6 +61,7 @@ function MinimizedBar({ label, onClick, left }: { label: string; onClick: () => 
 export default function DesktopPage() {
   const { user, isAuthenticated, isReady, apiHealthy, logout, bypassLogin } = useAuth();
   const { isCloudEnabled } = useDataSync();
+  useAutoBackup(10);
   const { items, addItem, updateItem, removeItem, moveItem } = useDesktopItems();
 
   const [dialogueState, setDialogueState] = useState<WindowState>('minimized');
