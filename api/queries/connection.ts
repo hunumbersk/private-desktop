@@ -10,7 +10,7 @@ export function getDb() {
   if (!instance) {
     pool = new Pool({
       connectionString: env.databaseUrl,
-      ssl: env.isProduction ? { rejectUnauthorized: false } : false,
+      ssl: true,
       connectionTimeoutMillis: 20000,
       idleTimeoutMillis: 30000,
     });

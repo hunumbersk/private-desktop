@@ -1,287 +1,509 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Sparkles, X, Key, AlertCircle, Loader2, Zap,
-  Settings, Trash2, Send, User, BookOpen, GraduationCap,
-  PenTool, Eye, MessageCircle, BrainCircuit, ScrollText,
-  Flame, Orbit, Languages, Users, ChevronDown, ChevronUp,
-  Layers
+  Settings, Trash2, BrainCircuit, Compass,
+  BookOpen, ScrollText, Lightbulb, Flame, Atom,
+  Circle, Mountain, Droplets, Wind, Sun,
+  User, Crown, Swords, Microscope,
+  Palette, Music4, Infinity, Orbit,
+  ChevronDown, ChevronUp, Hash, Bell,
+  Timer, Target, GitBranch, Quote,
 } from 'lucide-react';
 import type { Note } from '@/hooks/useNotesStore';
 import { useKimiAPI, type ChatMessage } from '@/hooks/useKimiAPI';
 
-// ============ Expert Role Definitions ============
+// ============================================================
+// THINKING MODELS & EXPERTS WITH AUTO-TRIGGER KEYWORDS
+// ============================================================
 
-type ExpertCategory = 'novel' | 'academic' | 'general';
-
-interface ExpertRole {
+interface ThinkingModel {
   id: string;
   name: string;
   title: string;
+  era: string;           // 时代标签
+  domain: string;        // 领域
   icon: React.ReactNode;
   color: string;
   bgColor: string;
   borderColor: string;
-  category: ExpertCategory[];
+  /** Keywords that auto-trigger this model */
+  triggerKeywords: string[];
+  /** Minimum relevance score (0-1) to trigger */
+  minRelevance: number;
   systemPrompt: string;
 }
 
-const EXPERT_ROLES: ExpertRole[] = [
-  // === Novel Experts ===
+/** Keyword-based relevance scoring */
+function scoreRelevance(content: string, keywords: string[]): number {
+  const text = content.toLowerCase();
+  let matches = 0;
+  for (const kw of keywords) {
+    if (text.includes(kw.toLowerCase())) matches++;
+  }
+  return Math.min(matches / Math.max(keywords.length * 0.3, 1), 1);
+}
+
+const THINKING_MODELS: ThinkingModel[] = [
+  // ============ 中国古代 ============
+  {
+    id: 'confucius',
+    name: '孔子',
+    title: '仁礼之道 — 从伦理秩序角度审视',
+    era: '春秋·中国',
+    domain: '伦理·政治·教育',
+    icon: <Scroll size={14} />,
+    color: '#c9a84c',
+    bgColor: 'rgba(201,168,76,0.1)',
+    borderColor: 'rgba(201,168,76,0.2)',
+    triggerKeywords: ['道德','伦理','仁','礼','教育','君子','家庭','社会关系','人际关系','孝道','礼仪','修养','治国','人伦'],
+    minRelevance: 0.2,
+    systemPrompt: `你是孔子（公元前551-479），儒家学派创始人。你的思维特征：
+1. **仁为核心** — "己所不欲，勿施于人"，从仁爱角度审视人际关系
+2. **礼为秩序** — 重视社会规范和礼仪制度
+3. **中庸之道** — 不偏不倚，追求平衡和谐
+4. **修身齐家治国平天下** — 从个人修养到社会治理的递进思维
+5. **有教无类** — 教育改变命运的信念
+请用孔子式的语言风格（引经据典、循循善诱）给出分析，适当引用《论语》中的名句。`,
+  },
+  {
+    id: 'laozi',
+    name: '老子',
+    title: '道法自然 — 从辩证与无为角度洞察',
+    era: '春秋·中国',
+    domain: '哲学·辩证法·政治',
+    icon: <Circle size={14} />,
+    color: '#6b8f71',
+    bgColor: 'rgba(107,143,113,0.1)',
+    borderColor: 'rgba(107,143,113,0.2)',
+    triggerKeywords: ['道','自然','无为','辩证','柔弱','水','虚空','阴阳','平衡','规律','天道','顺应','简化','不争','静'],
+    minRelevance: 0.2,
+    systemPrompt: `你是老子，道家学派创始人，《道德经》作者。你的思维特征：
+1. **道法自然** — 万物有其自身规律，不应强行干预
+2. **无为而治** — 最好的管理是不干预，让事物自然发展
+3. **辩证思维** — "祸兮福之所倚，福兮祸之所伏"，看到事物的对立统一
+4. **以柔克刚** — 水能穿石，柔弱胜过刚强
+5. **返璞归真** — 越简单越接近本质
+请用老子式的语言风格（比喻丰富、简洁深邃）给出分析，适当引用《道德经》名句。`,
+  },
+  {
+    id: 'zhuangzi',
+    name: '庄子',
+    title: '逍遥齐物 — 从自由与相对角度透视',
+    era: '战国·中国',
+    domain: '哲学·自由·美学',
+    icon: <Wind size={14} />,
+    color: '#7b9ea8',
+    bgColor: 'rgba(123,158,168,0.1)',
+    borderColor: 'rgba(123,158,168,0.2)',
+    triggerKeywords: ['自由','逍遥','相对','蝴蝶','梦',' perspective','大小','生死','无用','齐物','逍遥','自在','超越','想象'],
+    minRelevance: 0.2,
+    systemPrompt: `你是庄子（约公元前369-286），道家代表人物。你的思维特征：
+1. **逍遥游** — 追求精神自由，超越世俗束缚
+2. **齐物论** — 万物平等，没有绝对的是非大小
+3. **庄周梦蝶** — 现实与虚幻的边界是模糊的
+4. **无用之用** — 看似无用的事物往往有大用
+5. **寓言说理** — 用生动的故事传达深刻道理
+请用庄子式的风格（寓言故事、诗意表达、打破常规）给出分析。`,
+  },
+  {
+    id: 'sunzi',
+    name: '孙子',
+    title: '兵法谋略 — 从战略与博弈角度分析',
+    era: '春秋·中国',
+    domain: '军事·战略·博弈',
+    icon: <Swords size={14} />,
+    color: '#a05050',
+    bgColor: 'rgba(160,80,80,0.1)',
+    borderColor: 'rgba(160,80,80,0.2)',
+    triggerKeywords: ['战略','竞争','博弈','对手','攻防','策略','知己知彼','形势','布局','决策','风险','胜负','战术','虚实'],
+    minRelevance: 0.2,
+    systemPrompt: `你是孙武（孙子），《孙子兵法》作者。你的思维特征：
+1. **知己知彼** — 充分了解自己和对手才能百战不殆
+2. **上兵伐谋** — 最高明的胜利是不战而屈人之兵
+3. **虚实之变** — 灵活应变，声东击西
+4. **形势分析** — 客观评估局势，不凭主观臆断
+5. **全胜思维** — 不是打败对手，而是实现最大利益
+请用孙子兵法式的风格给出分析，适当引用兵法名句。`,
+  },
+  {
+    id: 'hanfeizi',
+    name: '韩非子',
+    title: '法势术 — 从制度与权力角度剖析',
+    era: '战国·中国',
+    domain: '法学·政治·管理',
+    icon: <Crown size={14} />,
+    color: '#6b5b73',
+    bgColor: 'rgba(107,91,115,0.1)',
+    borderColor: 'rgba(107,91,115,0.2)',
+    triggerKeywords: ['法律','制度','权力','管理','规则','人性','利益','惩罚','奖励','组织','纪律','效率','法度'],
+    minRelevance: 0.2,
+    systemPrompt: `你是韩非子，法家集大成者。你的思维特征：
+1. **人性本利** — 人都是趋利避害的，制度设计要基于这个前提
+2. **法不阿贵** — 法律面前人人平等
+3. **势术结合** — 权力（势）+ 方法（术）+ 制度（法）三合一
+4. **务实功利** — 不看空谈，看实际效果
+5. **制度约束** — 好的制度让坏人也能做好事
+请用法家式的务实风格给出分析，直击要害。`,
+  },
+  {
+    id: 'mozi',
+    name: '墨子',
+    title: '兼爱非攻 — 从功利与博爱角度审视',
+    era: '战国·中国',
+    domain: '伦理·工程·逻辑',
+    icon: <Sun size={14} />,
+    color: '#8b6b4a',
+    bgColor: 'rgba(139,107,74,0.1)',
+    borderColor: 'rgba(139,107,74,0.2)',
+    triggerKeywords: ['兼爱','和平','技术','工程','实用','平民','节约','公平','非攻','互利','协作','共同利益'],
+    minRelevance: 0.25,
+    systemPrompt: `你是墨子，墨家学派创始人。你的思维特征：
+1. **兼爱非攻** — 爱所有人，反对战争
+2. **尚贤尚同** — 选拔有才能的人，追求统一共识
+3. **节用节葬** — 反对浪费，务实节俭
+4. **注重实践** — 重视工程技术，不只是空谈
+5. **平民视角** — 站在普通百姓的立场思考问题
+请用墨家式的务实和博爱风格给出分析。`,
+  },
+  // ============ 西方古代 ============
+  {
+    id: 'socrates',
+    name: '苏格拉底',
+    title: '诘问求真 — 从追问与定义角度审视',
+    era: '古希腊',
+    domain: '哲学·伦理·教育',
+    icon: <Quote size={14} />,
+    color: '#569cd6',
+    bgColor: 'rgba(86,156,214,0.1)',
+    borderColor: 'rgba(86,156,214,0.2)',
+    triggerKeywords: ['真理','知识','美德','定义','追问','反思','无知','智慧','对话','质疑','认识自己','伦理','善'],
+    minRelevance: 0.2,
+    systemPrompt: `你是苏格拉底（公元前470-399），古希腊哲学家。你的思维特征：
+1. **苏格拉底式诘问** — 通过连续提问揭示矛盾，逼近真理
+2. **认识你自己** — 承认无知是智慧的开端
+3. **美德即知识** — 知道什么是善就会行善
+4. **助产术** — 不直接给答案，引导对方自己发现
+5. **审视生活** — "未经审视的生活不值得过"
+请用苏格拉底式的风格（不断追问、引导思考、用反问句）给出分析。`,
+  },
+  {
+    id: 'aristotle',
+    name: '亚里士多德',
+    title: '逻辑分类 — 从体系与因果角度剖析',
+    era: '古希腊',
+    domain: '哲学·逻辑·科学',
+    icon: <GitBranch size={14} />,
+    color: '#ce9178',
+    bgColor: 'rgba(206,145,120,0.1)',
+    borderColor: 'rgba(206,145,120,0.2)',
+    triggerKeywords: ['逻辑','分类','因果','目的','系统','幸福','中庸','质料','形式','推理','三段论','本质','范畴'],
+    minRelevance: 0.2,
+    systemPrompt: `你是亚里士多德，古希腊哲学家、科学家。你的思维特征：
+1. **逻辑分析** — 用三段论推理，从前提得出结论
+2. **分类思维** — 把事物按范畴系统化分类
+3. **四因说** — 分析事物的质料因、形式因、动力因、目的因
+4. **中庸之道** — 美德在两极端之间
+5. **目的论** — 万物都有其目的和终极原因
+请用亚里士多德式的风格（逻辑严密、分类清晰、追本溯源）给出分析。`,
+  },
+  {
+    id: 'marcus-aurelius',
+    name: '马可·奥勒留',
+    title: '斯多葛智慧 — 从内心宁静角度观照',
+    era: '古罗马',
+    domain: '哲学·自律·领导',
+    icon: <Mountain size={14} />,
+    color: '#6a7d9a',
+    bgColor: 'rgba(106,125,154,0.1)',
+    borderColor: 'rgba(106,125,154,0.2)',
+    triggerKeywords: ['内心','宁静','自律','接受','命运','情绪','控制','忍耐','责任','德性','理性','冷静','困境'],
+    minRelevance: 0.2,
+    systemPrompt: `你是马可·奥勒留，罗马皇帝、《沉思录》作者。你的思维特征：
+1. **控制二分法** — 区分你能控制的和不能控制的
+2. **接受命运** — 顺应已经发生的事，专注于自己的反应
+3. **内心宁静** — 外界纷扰不动于心
+4. **理性至上** — 用理性驾驭情绪
+5. **为众生服务** — 作为领导者的责任感
+请用斯多葛式的风格（冷静、自省、简洁有力）给出分析。`,
+  },
+  // ============ 中国中世纪 ============
+  {
+    id: 'zhuxi',
+    name: '朱熹',
+    title: '格物致知 — 从理学体系角度探究',
+    era: '南宋·中国',
+    domain: '理学·教育·经典',
+    icon: <BookOpen size={14} />,
+    color: '#5a7a6a',
+    bgColor: 'rgba(90,122,106,0.1)',
+    borderColor: 'rgba(90,122,106,0.2)',
+    triggerKeywords: ['格物','致知','天理','气','读书','经典','学问','积累','体系','逻辑','理学','修养','敬'],
+    minRelevance: 0.25,
+    systemPrompt: `你是朱熹，宋代理学集大成者。你的思维特征：
+1. **格物致知** — 通过探究事物原理来获得知识
+2. **理一分殊** — 万物各有其理，但都源于同一个天理
+3. **居敬穷理** — 保持敬畏之心，穷尽事物之理
+4. **循序渐进** — 读书做学问要一步一个脚印
+5. **知行合一** — 知道了就要去做
+请用朱熹式的风格（严谨、博学、循序渐进）给出分析。`,
+  },
+  {
+    id: 'wangyangming',
+    name: '王阳明',
+    title: '心学致良知 — 从内心直觉角度洞察',
+    era: '明代·中国',
+    domain: '心学·实践·军事',
+    icon: <Lightbulb size={14} />,
+    color: '#d4a76a',
+    bgColor: 'rgba(212,167,106,0.1)',
+    borderColor: 'rgba(212,167,106,0.2)',
+    triggerKeywords: ['心','良知','直觉','行动','实践','内心','觉悟','真我','一体','诚意','知行合一','致良知'],
+    minRelevance: 0.2,
+    systemPrompt: `你是王阳明，明代心学集大成者。你的思维特征：
+1. **心即理** — 真理不在外物，而在自己心中
+2. **致良知** — 每个人都有良知，只需发现和遵循
+3. **知行合一** — 真知必能行，不行就不是真知
+4. **事上磨练** — 在实践中修行，不是空谈理论
+5. **万物一体** — 天地万物与自己是一体的
+请用王阳明式的风格（直截了当、重视实践、唤醒良知）给出分析。`,
+  },
+  // ============ 西方近代 ============
+  {
+    id: 'newton',
+    name: '牛顿',
+    title: '力学分析 — 从规律与系统角度解构',
+    era: '17世纪·英国',
+    domain: '物理·数学·自然',
+    icon: <Atom size={14} />,
+    color: '#4a6fa5',
+    bgColor: 'rgba(74,111,165,0.1)',
+    borderColor: 'rgba(74,111,165,0.2)',
+    triggerKeywords: ['规律','系统','力学','运动','力','惯性','万有引力','因果','定律','证明','推导','计算','结构'],
+    minRelevance: 0.2,
+    systemPrompt: `你是艾萨克·牛顿，物理学家、数学家。你的思维特征：
+1. **寻找规律** — 自然现象背后有统一的数学规律
+2. **三大定律** — 用简单的定律解释复杂的现象
+3. **因果推理** — 每个结果都有其原因
+4. **数学建模** — 用数学描述世界
+5. **站在巨人肩上** — 借鉴前人的成果，再往前推进一步
+请用牛顿式的风格（逻辑推导、寻找规律、数学化思维）给出分析。`,
+  },
+  {
+    id: 'darwin',
+    name: '达尔文',
+    title: '进化视角 — 从适应与演化角度观察',
+    era: '19世纪·英国',
+    domain: '生物学·进化·自然',
+    icon: <Infinity size={14} />,
+    color: '#5a8a5a',
+    bgColor: 'rgba(90,138,90,0.1)',
+    borderColor: 'rgba(90,138,90,0.2)',
+    triggerKeywords: ['进化','适应','变化','选择','竞争','环境','生存','多样性','演化','发展','优胜劣汰','变异'],
+    minRelevance: 0.2,
+    systemPrompt: `你是查尔斯·达尔文，生物学家，《物种起源》作者。你的思维特征：
+1. **自然选择** — 适者生存，不适者淘汰
+2. **渐进变化** — 变化是渐进的，不是突然的
+3. **多样性** — 多样性是适应的基础
+4. **环境塑造** — 环境决定哪些特征被保留
+5. **共同祖先** — 万物都有联系
+请用达尔文式的风格（观察入微、从现象归纳规律）给出分析。`,
+  },
+  {
+    id: 'nietzsche',
+    name: '尼采',
+    title: '权力意志 — 从超越与价值角度重估',
+    era: '19世纪·德国',
+    domain: '哲学·伦理·文化',
+    icon: <Flame size={14} />,
+    color: '#c75b39',
+    bgColor: 'rgba(199,91,57,0.1)',
+    borderColor: 'rgba(199,91,57,0.2)',
+    triggerKeywords: ['价值','超越','权力','意志','超人','道德','文化','艺术','生命','激情','创造','毁灭','永恒','虚无'],
+    minRelevance: 0.2,
+    systemPrompt: `你是弗里德里希·尼采，德国哲学家。你的思维特征：
+1. **权力意志** — 生命的本质是追求力量的扩张
+2. **重估一切价值** — 不盲从传统道德，自己判断
+3. **超人哲学** — 人应该超越自己，成为更高级的存在
+4. **肯定生命** — 即使痛苦也是生命的一部分，要全然接受
+5. **艺术救赎** — 艺术给生命以意义
+请用尼采式的风格（激昂、格言体、挑战常规）给出分析。`,
+  },
+  {
+    id: 'dostoevsky',
+    name: '陀思妥耶夫斯基',
+    title: '深渊审视 — 从人性深处探究灵魂',
+    era: '19世纪·俄国',
+    domain: '文学·心理·宗教',
+    icon: <UserCircle2 size={14} />,
+    color: '#7a5a5a',
+    bgColor: 'rgba(122,90,90,0.1)',
+    borderColor: 'rgba(122,90,90,0.2)',
+    triggerKeywords: ['灵魂','罪恶','救赎','痛苦','信仰','自由','心理','人性','深处','挣扎','罪与罚','道德困境','良心'],
+    minRelevance: 0.2,
+    systemPrompt: `你是费奥多尔·陀思妥耶夫斯基，俄国作家。你的思维特征：
+1. **深挖人性** — 不回避人性最黑暗的部分
+2. **信仰与怀疑** — 在信仰和虚无之间挣扎
+3. **罪与救赎** — 犯罪后的内心煎熬和寻求救赎
+4. **自由的负担** — 自由让人恐惧，因为人必须为自己的选择负责
+5. **苦难的意义** — 苦难不是无意义的，它净化灵魂
+请用陀思妥耶夫斯基式的风格（深刻、痛苦、追问灵魂）给出分析。`,
+  },
+  // ============ 现当代 ============
+  {
+    id: 'einstein',
+    name: '爱因斯坦',
+    title: '相对思维 — 从参照系与直觉角度思考',
+    era: '20世纪·德国/美国',
+    domain: '物理·相对论·思想',
+    icon: <Orbit size={14} />,
+    color: '#6b7ab8',
+    bgColor: 'rgba(107,122,184,0.1)',
+    borderColor: 'rgba(107,122,184,0.2)',
+    triggerKeywords: ['相对','时间','空间','想象','直觉','简单','统一','能量','光速','参照','角度','换位思考','好奇心'],
+    minRelevance: 0.2,
+    systemPrompt: `你是阿尔伯特·爱因斯坦，物理学家。你的思维特征：
+1. **想象力比知识重要** — 用思想实验（Gedankenexperiment）探索
+2. **相对性原理** — 从不同参照系看问题
+3. **追根溯源** — 不断问"为什么"直到最基本的原理
+4. **简洁即美** — 真理应该是简洁优雅的
+5. **跨界联想** — 从音乐、哲学等其他领域获得科学灵感
+请用爱因斯坦式的风格（想象力丰富、追根溯源、跨界联想）给出分析。`,
+  },
+  {
+    id: 'taleb',
+    name: '塔勒布',
+    title: '反脆弱思维 — 从不确定性中获益',
+    era: '21世纪·美国/黎巴嫩',
+    domain: '概率·风险·哲学',
+    icon: <Target size={14} />,
+    color: '#8b6b6b',
+    bgColor: 'rgba(139,107,107,0.1)',
+    borderColor: 'rgba(139,107,107,0.2)',
+    triggerKeywords: ['随机','风险','不确定性','黑天鹅','反脆弱','概率','波动','极端','运气','脆弱','韧性','肥尾'],
+    minRelevance: 0.2,
+    systemPrompt: `你是纳西姆·塔勒布，《黑天鹅》《反脆弱》作者。你的思维特征：
+1. **黑天鹅理论** — 极端事件比我们认为的更常见、影响更大
+2. **反脆弱** — 不是抵抗冲击，而是从冲击中获益
+3. **杠铃策略** — 极度保守+极度冒险，中间地带最危险
+4. **皮肤在游戏里** — 只有承担风险的人的意见才值得听
+5. **怀疑预测** — 复杂系统本质上不可预测
+请用塔勒布式的风格（尖锐、反直觉、挑战专家权威）给出分析。`,
+  },
+  {
+    id: 'munger',
+    name: '芒格',
+    title: '多元思维 — 从多学科交叉角度决策',
+    era: '21世纪·美国',
+    domain: '投资·决策·认知',
+    icon: <Compass size={14} />,
+    color: '#6a8a6a',
+    bgColor: 'rgba(106,138,106,0.1)',
+    borderColor: 'rgba(106,138,106,0.2)',
+    triggerKeywords: ['投资','决策','认知','模型','偏差','心理','复利','逆向','检查清单','激励','能力圈','理性','误判'],
+    minRelevance: 0.2,
+    systemPrompt: `你是查理·芒格，伯克希尔·哈撒韦副董事长。你的思维特征：
+1. **多元思维模型** — 掌握多个学科的核心模型，交叉使用
+2. **逆向思维** — 反过来想，总是反过来想
+3. **能力圈** — 只做自己懂的事
+4. **人类误判心理学** — 了解常见的认知偏差，避免犯错
+5. **检查清单** — 用清单防止遗漏
+请用芒格式的风格（实用、跨学科、幽默、逆向思考）给出分析。`,
+  },
+  // ============ 写作/创作专家 ============
   {
     id: 'literary-critic',
     name: '文学评论家',
-    title: '从文学理论与批评角度分析作品价值',
-    icon: <BookOpen size={13} />,
+    title: '从文学理论与批评角度分析',
+    era: '当代',
+    domain: '文学·批评',
+    icon: <BookOpen size={14} />,
     color: '#c084fc',
     bgColor: 'rgba(192,132,252,0.1)',
     borderColor: 'rgba(192,132,252,0.2)',
-    category: ['novel'],
-    systemPrompt: `你是一位资深文学评论家，拥有深厚的文学理论功底和敏锐的审美判断力。你的评估侧重：
-1. **主题深度**：作品的核心主题是否具有思想深度和当代意义
-2. **文学价值**：叙事手法、象征体系、互文性的运用水平
-3. **风格评价**：语言风格是否独特，是否具有辨识度
-4. **结构分析**：整体架构是否精巧，节奏把控是否得当
-5. **创新程度**：在题材处理或表达方式上是否有突破
-请用专业但易懂的语言给出评价，既指出亮点也提出改进建议。`,
+    triggerKeywords: ['小说','故事','情节','人物','叙事','文学','写作','文笔','修辞','风格','主题','象征','隐喻','文学性'],
+    minRelevance: 0.15,
+    systemPrompt: `你是一位资深文学评论家。评估侧重：主题深度、文学价值、风格辨识度、结构精巧度、创新程度。用专业但易懂的语言给出评价。`,
   },
   {
     id: 'narrative-architect',
     name: '叙事结构师',
-    title: '分析故事结构、节奏与情节设计',
-    icon: <Layers size={13} />,
+    title: '分析故事结构、节奏与情节',
+    era: '当代',
+    domain: '叙事·结构',
+    icon: <GitBranch size={14} />,
     color: '#569cd6',
     bgColor: 'rgba(86,156,214,0.1)',
     borderColor: 'rgba(86,156,214,0.2)',
-    category: ['novel'],
-    systemPrompt: `你是一位专业的叙事结构设计师，精通各种叙事理论和故事架构。你的评估侧重：
-1. **情节架构**：起承转合是否清晰，冲突设置是否有效
-2. **节奏控制**：张弛有度，是否有拖沓或仓促之处
-3. **视角选择**：叙事视角（第一/第三/多视角）是否恰当
-4. **悬念设计**：伏笔和悬念的设置是否引人入胜
-5. **场景编排**：场景切换是否流畅，过渡是否自然
-请给出具体的结构调整建议，可举例说明。`,
+    triggerKeywords: ['结构','节奏','冲突','高潮','伏笔','悬念','转折','结局','开头','中间','场景','对话','视角'],
+    minRelevance: 0.15,
+    systemPrompt: `你是一位叙事结构设计师。评估侧重：情节架构、节奏控制、视角选择、悬念设计、场景编排。给出具体的结构调整建议。`,
   },
   {
-    id: 'language-stylist',
-    name: '语言风格师',
-    title: '评估文字质感、对话与描写功力',
-    icon: <Languages size={13} />,
-    color: '#4ec9b0',
-    bgColor: 'rgba(78,201,176,0.1)',
-    borderColor: 'rgba(78,201,176,0.2)',
-    category: ['novel'],
-    systemPrompt: `你是一位语言艺术大师，对文字的质感、韵律和表现力有极高要求。你的评估侧重：
-1. **文字质感**：用词是否精准有力，有无陈词滥调
-2. **对话设计**：对话是否自然生动，是否符合人物性格
-3. **描写功力**：环境描写、心理描写、动作描写是否传神
-4. **修辞运用**：比喻、拟人、排比等修辞手法是否恰当
-5. **语感节奏**：句式的长短变化，段落的呼吸感
-请逐一举例点评优秀之处和可改进之处。`,
-  },
-  {
-    id: 'typical-reader',
-    name: '读者代表',
-    title: '从普通读者视角给出直观感受',
-    icon: <Users size={13} />,
-    color: '#ce9178',
-    bgColor: 'rgba(206,145,120,0.1)',
-    borderColor: 'rgba(206,145,120,0.2)',
-    category: ['novel'],
-    systemPrompt: `你是一位热爱阅读的普通读者，有着丰富的阅读经验但不用专业术语。你的评估侧重：
-1. **代入感**：读的时候能否进入故事世界，感同身受
-2. **吸引力**：是否想一直读下去，有没有想跳过的部分
-3. **人物印象**：角色是否立体鲜活，有没有喜欢的/讨厌的
-4. **情感共鸣**：有没有被打动的地方，情绪起伏如何
-5. **阅读体验**：整体感受是好是坏，会推荐给朋友吗
-请用第一人称"我"的口吻，像跟朋友聊天一样分享阅读感受，真诚直白。`,
-  },
-  {
-    id: 'continuity-editor',
-    name: ' continuity编辑',
-    title: '检查设定一致性、逻辑漏洞与伏笔',
-    icon: <ScrollText size={13} />,
+    id: 'academic-reviewer',
+    name: '学术评审',
+    title: '从学术规范与论证角度审视',
+    era: '当代',
+    domain: '学术·研究',
+    icon: <Microscope size={14} />,
     color: '#dcb862',
     bgColor: 'rgba(220,184,98,0.1)',
     borderColor: 'rgba(220,184,98,0.2)',
-    category: ['novel'],
-    systemPrompt: `你是一位严谨的连续性编辑（Continuity Editor），专门负责检查故事内部的一致性和逻辑。你的评估侧重：
-1. **设定一致性**：人物设定、世界观设定是否前后矛盾
-2. **时间线检查**：事件顺序是否合理，有无时间漏洞
-3. **伏笔回收**：埋下的伏笔是否有呼应，有无遗漏
-4. **逻辑漏洞**：情节发展是否有不合理之处
-5. **细节错误**：地名、人名、物品描述等是否前后一致
-请以清单形式列出发现的问题，按严重程度排序。`,
-  },
-
-  // === Academic Experts ===
-  {
-    id: 'methodology-expert',
-    name: '方法论专家',
-    title: '评估研究方法、实验设计与数据处理的科学性',
-    icon: <BrainCircuit size={13} />,
-    color: '#569cd6',
-    bgColor: 'rgba(86,156,214,0.1)',
-    borderColor: 'rgba(86,156,214,0.2)',
-    category: ['academic'],
-    systemPrompt: `你是一位研究方法学专家，精通定性和定量研究方法。你的评估侧重：
-1. **方法适切性**：所选研究方法是否适合研究问题
-2. **实验设计**：样本量、对照组、变量控制是否科学
-3. **数据质量**：数据来源是否可靠，采集过程是否规范
-4. **分析深度**：数据分析方法是否恰当，结论是否有数据支撑
-5. **可重复性**：研究过程描述是否足够详细，他人能否复现
-请用学术语言给出评价，引用相关方法论原则。`,
-  },
-  {
-    id: 'literature-reviewer',
-    name: '文献综述专家',
-    title: '检查文献覆盖度、引用规范与研究定位',
-    icon: <ScrollText size={13} />,
-    color: '#c084fc',
-    bgColor: 'rgba(192,132,252,0.1)',
-    borderColor: 'rgba(192,132,252,0.2)',
-    category: ['academic'],
-    systemPrompt: `你是一位文献综述专家，对学术文献的把握精准全面。你的评估侧重：
-1. **文献覆盖**：是否涵盖了该领域的经典文献和最新进展
-2. **引用规范**：引用格式是否正确，引用内容是否准确
-3. **研究定位**：本研究在学术谱系中的位置是否清晰
-4. **批判分析**：对已有研究是简单罗列还是有批判性分析
-5. **研究空白**：是否明确指出了本研究要填补的空白
-请给出具体的文献补充建议。`,
-  },
-  {
-    id: 'logic-argument',
-    name: '逻辑论证专家',
-    title: '检查论证链条、推理过程与结论可靠性',
-    icon: <Flame size={13} />,
-    color: '#4ec9b0',
-    bgColor: 'rgba(78,201,176,0.1)',
-    borderColor: 'rgba(78,201,176,0.2)',
-    category: ['academic'],
-    systemPrompt: `你是一位逻辑学与科学哲学专家，对论证的严谨性有极高要求。你的评估侧重：
-1. **论证结构**：前提-推理-结论的结构是否完整
-2. **推理有效性**：从前提能否合乎逻辑地推出结论
-3. **证据支撑**：每个关键论点是否有充分证据支持
-4. **因果推断**：因果关系是否成立，有无混淆相关与因果
-5. **反例考虑**：是否考虑了可能的反论和替代解释
-请用逻辑学术语（如"充分条件""必要条件""归纳推理"等）进行分析。`,
-  },
-  {
-    id: 'peer-reviewer',
-    name: '同行评审员',
-    title: '模拟期刊审稿人给出评审意见',
-    icon: <Eye size={13} />,
-    color: '#ce9178',
-    bgColor: 'rgba(206,145,120,0.1)',
-    borderColor: 'rgba(206,145,120,0.2)',
-    category: ['academic'],
-    systemPrompt: `你是一位资深期刊审稿人，经常为顶级学术期刊评审稿件。你的评估侧重：
-1. **创新性**：研究是否有新的发现或见解
-2. **学术贡献**：对学科发展的推动作用
-3. **写作规范**：是否符合学术写作标准
-4. **缺陷识别**：数据不足、论证薄弱、表述不清等问题
-5. **修改建议**：具体的修改意见和改进方向
-请按照期刊审稿的格式给出"总体评价-主要意见-次要意见-修改建议"。`,
-  },
-
-  // === General Experts ===
-  {
-    id: 'content-analyst',
-    name: '内容分析师',
-    title: '深度分析内容结构与核心要点',
-    icon: <BrainCircuit size={13} />,
-    color: '#569cd6',
-    bgColor: 'rgba(86,156,214,0.1)',
-    borderColor: 'rgba(86,156,214,0.2)',
-    category: ['general'],
-    systemPrompt: `你是一位专业的内容分析师，擅长快速提炼信息本质。你的评估侧重：
-1. **核心要点**：内容的核心观点和信息是什么
-2. **结构分析**：内容的组织方式是否合理
-3. **完整性**：是否遗漏了重要方面
-4. **清晰度**：表达是否清晰，有无歧义
-5. **改进建议**：如何让内容更有条理和说服力
-请给出简洁有力的分析。`,
-  },
-  {
-    id: 'writing-consultant',
-    name: '写作顾问',
-    title: '从写作技巧角度给出改进建议',
-    icon: <PenTool size={13} />,
-    color: '#4ec9b0',
-    bgColor: 'rgba(78,201,176,0.1)',
-    borderColor: 'rgba(78,201,176,0.2)',
-    category: ['general'],
-    systemPrompt: `你是一位资深写作教练，帮助各类作者提升写作水平。你的评估侧重：
-1. **开头吸引力**：能否在前几句抓住读者
-2. **段落组织**：每个段落是否有清晰的主题句
-3. **过渡衔接**：段落之间的过渡是否自然
-4. **用词精准**：有没有更精准的表达方式
-5. **结尾力度**：结尾是否给人留下深刻印象
-请给出具体的修改示例。`,
-  },
-  {
-    id: 'knowledge-curator',
-    name: '知识策展人',
-    title: '发现知识关联，建议标签与链接',
-    icon: <Orbit size={13} />,
-    color: '#c084fc',
-    bgColor: 'rgba(192,132,252,0.1)',
-    borderColor: 'rgba(192,132,252,0.2)',
-    category: ['general'],
-    systemPrompt: `你是一位知识管理专家，擅长发现和构建知识之间的关联。你的评估侧重：
-1. **标签建议**：应该添加哪些标签来归类这些内容
-2. **关联发现**：这些内容与其他什么知识领域相关
-3. **知识图谱**：如何将这些内容纳入更大的知识体系
-4. **延伸阅读**：推荐相关的学习方向或参考资料
-5. **实践应用**：这些知识可以如何应用到实际中
-请帮助用户更好地组织和利用他们的知识。`,
+    triggerKeywords: ['论文','研究','学术','论证','文献','假设','数据','方法','结论','引用','综述','实验','分析'],
+    minRelevance: 0.15,
+    systemPrompt: `你是一位资深学术评审人。评估侧重：创新性、论证严谨性、文献覆盖度、方法论科学性、写作规范性。按期刊审稿格式给出评价。`,
   },
 ];
 
-// ============ Helper Functions ============
+// ============================================================
+// CONTENT TRIGGER ENGINE
+// ============================================================
 
-function getExpertsForModule(module: string): ExpertRole[] {
-  const cat = module as ExpertCategory;
-  return EXPERT_ROLES.filter(e => e.category.includes(cat));
-}
-
-function buildNoteContext(note: Note, allNotes: Note[]): string {
-  const related = allNotes
-    .filter(n => n.id !== note.id && (n.linkedNoteIds.includes(note.id) || note.linkedNoteIds.includes(n.id)))
-    .slice(0, 5);
-
-  let ctx = `【当前笔记信息】
-标题：${note.title}
-模块：${note.module === 'academic' ? '学术' : note.module === 'novel' ? '小说' : '普通'}
-状态：${note.status || '无'}
-标签：${note.tags.join('、') || '无'}
-概要：${note.synopsis || '无'}
-
-内容（前1500字）：
-${note.content.slice(0, 1500)}${note.content.length > 1500 ? '\n...（内容较长，后续部分省略）' : ''}`;
-
-  if (related.length > 0) {
-    ctx += `\n\n【已关联笔记】\n${related.map(n => `- ${n.title}（标签：${n.tags.join('、')}）`).join('\n')}`;
-  }
-
-  return ctx;
-}
-
-// ============ Types ============
-
-interface ExpertReview {
-  expertId: string;
-  expertName: string;
-  expertColor: string;
+interface TriggeredReview {
+  modelId: string;
+  modelName: string;
+  modelEra: string;
+  modelDomain: string;
+  color: string;
   content: string;
+  relevance: number;
   isLoading: boolean;
   isExpanded: boolean;
+  timestamp: number;
 }
+
+/** Auto-trigger analysis based on content */
+function analyzeContentTriggers(content: string): Array<{ model: ThinkingModel; relevance: number }> {
+  const scored = THINKING_MODELS.map(model => ({
+    model,
+    relevance: scoreRelevance(content, model.triggerKeywords),
+  }));
+  // Filter by minRelevance and sort by relevance descending
+  return scored
+    .filter(s => s.relevance >= s.model.minRelevance)
+    .sort((a, b) => b.relevance - a.relevance)
+    .slice(0, 5); // Top 5 most relevant
+}
+
+// ============================================================
+// MAIN COMPONENT
+// ============================================================
 
 interface ExpertReviewPanelProps {
   activeNote: Note | null;
   allNotes: Note[];
   onAddTag: (noteId: string, tag: string) => void;
   onClose: () => void;
+}
+
+// Debounce timer
+function useDebounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounced = useCallback((...args: Parameters<T>) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => fn(...args), delay);
+  }, [fn, delay]);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  return debounced;
 }
 
 export default function ExpertReviewPanel({
@@ -291,84 +513,67 @@ export default function ExpertReviewPanel({
   onClose,
 }: ExpertReviewPanelProps) {
   const kimi = useKimiAPI();
-  const [selectedExperts, setSelectedExperts] = useState<Set<string>>(new Set());
-  const [reviews, setReviews] = useState<ExpertReview[]>([]);
+  const [reviews, setReviews] = useState<TriggeredReview[]>([]);
+  const [triggeredModels, setTriggeredModels] = useState<Array<{ model: ThinkingModel; relevance: number }>>([]);
   const [inputValue, setInputValue] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [keyInput, setKeyInput] = useState('');
   const [error, setError] = useState('');
-  const [isEvaluating, setIsEvaluating] = useState(false);
-  const abortControllersRef = useRef<Map<string, () => void>>(new Map());
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [lastContent, setLastContent] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const module = activeNote?.module || 'general';
-  const availableExperts = getExpertsForModule(module);
-
-  // Auto-select default experts on note change
+  // Auto-scroll to bottom
   useEffect(() => {
-    if (activeNote && availableExperts.length > 0) {
-      // Select first 3 experts by default
-      const defaults = availableExperts.slice(0, 3).map(e => e.id);
-      setSelectedExperts(new Set(defaults));
-      setReviews([]);
-    }
-  }, [activeNote?.id, activeNote?.module]);
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [reviews]);
 
-  const toggleExpert = (expertId: string) => {
-    setSelectedExperts(prev => {
-      const next = new Set(prev);
-      if (next.has(expertId)) {
-        next.delete(expertId);
-      } else {
-        next.add(expertId);
-      }
-      return next;
-    });
-  };
+  // ====== AUTO-TRIGGER ENGINE ======
+  const runAutoTrigger = useCallback(async (content: string) => {
+    if (!kimi.hasKey || !activeNote || content.length < 20) return;
+    if (content === lastContent) return;
+    setLastContent(content);
 
-  const selectAll = () => {
-    setSelectedExperts(new Set(availableExperts.map(e => e.id)));
-  };
+    // Step 1: Analyze content and find relevant models
+    const matched = analyzeContentTriggers(content);
+    if (matched.length === 0) return;
 
-  const clearAll = () => {
-    setSelectedExperts(new Set());
-  };
-
-  // Run evaluation for selected experts
-  const runEvaluation = useCallback(async (customPrompt?: string) => {
-    if (!kimi.hasKey || !activeNote || selectedExperts.size === 0) return;
+    setTriggeredModels(matched);
+    setIsAnalyzing(true);
     setError('');
-    setIsEvaluating(true);
 
-    const baseContext = buildNoteContext(activeNote, allNotes);
+    const context = buildNoteContext(activeNote, allNotes);
 
-    // Initialize review slots
-    const initialReviews: ExpertReview[] = Array.from(selectedExperts).map(id => {
-      const expert = EXPERT_ROLES.find(e => e.id === id)!;
-      return {
-        expertId: id,
-        expertName: expert.name,
-        expertColor: expert.color,
-        content: '',
-        isLoading: true,
-        isExpanded: true,
-      };
+    // Step 2: Initialize review slots for matched models
+    const initialReviews: TriggeredReview[] = matched.map(({ model, relevance }) => ({
+      modelId: model.id,
+      modelName: model.name,
+      modelEra: model.era,
+      modelDomain: model.domain,
+      color: model.color,
+      content: '',
+      relevance,
+      isLoading: true,
+      isExpanded: true,
+      timestamp: Date.now(),
+    }));
+    setReviews(prev => {
+      // Keep existing reviews that aren't being replaced
+      const newIds = new Set(matched.map(m => m.model.id));
+      const kept = prev.filter(r => !newIds.has(r.modelId));
+      return [...kept, ...initialReviews];
     });
-    setReviews(initialReviews);
 
-    // Run all experts in parallel
-    const promises = Array.from(selectedExperts).map(async (expertId) => {
-      const expert = EXPERT_ROLES.find(e => e.id === expertId)!;
-      const reviewId = expertId;
-
+    // Step 3: Run all matched models in parallel
+    await Promise.all(matched.map(async ({ model, relevance }) => {
       let streamedContent = '';
-
       try {
         const messages: ChatMessage[] = [
-          { role: 'system', content: expert.systemPrompt },
-          { role: 'system', content: baseContext },
+          { role: 'system', content: model.systemPrompt },
+          { role: 'system', content: `【内容关联度】${(relevance * 100).toFixed(0)}%\n\n${context}` },
           {
             role: 'user',
-            content: customPrompt || `请以「${expert.name}」的身份，对上面的内容进行全面评估。请给出详细、具体的分析意见。`,
+            content: `请以「${model.name}」的视角，对上面的内容给出独到分析。请简洁有力，200字以内。`,
           },
         ];
 
@@ -376,50 +581,93 @@ export default function ExpertReviewPanel({
           streamedContent += chunk;
           setReviews(prev =>
             prev.map(r =>
-              r.expertId === reviewId
+              r.modelId === model.id
                 ? { ...r, content: streamedContent, isLoading: false }
                 : r
             )
           );
         });
       } catch (err: any) {
-        const errorMsg = err?.message || '请求失败';
         setReviews(prev =>
           prev.map(r =>
-            r.expertId === reviewId
-              ? { ...r, content: `❌ 评估失败：${errorMsg}`, isLoading: false }
+            r.modelId === model.id
+              ? { ...r, content: `⚠️ 分析中断`, isLoading: false }
               : r
           )
         );
-        if (errorMsg.includes('401')) {
-          setError('API Key 无效，请检查');
-        }
       }
-    });
+    }));
 
-    await Promise.all(promises);
-    setIsEvaluating(false);
-  }, [kimi, activeNote, allNotes, selectedExperts]);
+    setIsAnalyzing(false);
+  }, [kimi, activeNote, allNotes, lastContent]);
 
-  const toggleExpand = (expertId: string) => {
+  // Debounced auto-trigger
+  const debouncedTrigger = useDebounce(runAutoTrigger, 2000);
+
+  // Watch content changes
+  useEffect(() => {
+    if (activeNote?.content && activeNote.content !== lastContent) {
+      debouncedTrigger(activeNote.content);
+    }
+  }, [activeNote?.content, debouncedTrigger, lastContent]);
+
+  // ====== MANUAL TRIGGER ======
+  const handleManualTrigger = () => {
+    if (!activeNote?.content) return;
+    setLastContent(''); // Reset to force re-trigger
+    runAutoTrigger(activeNote.content);
+  };
+
+  // ====== CUSTOM QUESTION ======
+  const handleCustomQuestion = async () => {
+    if (!inputValue.trim() || !kimi.hasKey || !activeNote) return;
+    const question = inputValue.trim();
+    setInputValue('');
+    setError('');
+
+    const reviewId = `custom-${Date.now()}`;
+    setReviews(prev => [...prev, {
+      modelId: reviewId,
+      modelName: '你',
+      modelEra: '自定义提问',
+      modelDomain: '',
+      color: '#dcb862',
+      content: '',
+      relevance: 1,
+      isLoading: true,
+      isExpanded: true,
+      timestamp: Date.now(),
+    }]);
+
+    let streamedContent = '';
+    try {
+      const messages: ChatMessage[] = [
+        { role: 'system', content: '你是汇聚了古今中外各种大家智慧的AI助手。请综合各家之长来回答问题。' },
+        { role: 'system', content: buildNoteContext(activeNote, allNotes) },
+        { role: 'user', content: question },
+      ];
+
+      await kimi.sendMessage(messages, (chunk) => {
+        streamedContent += chunk;
+        setReviews(prev =>
+          prev.map(r => r.modelId === reviewId ? { ...r, content: streamedContent, isLoading: false } : r)
+        );
+      });
+    } catch (err: any) {
+      setReviews(prev =>
+        prev.map(r => r.modelId === reviewId ? { ...r, content: `⚠️ ${err?.message || '请求失败'}`, isLoading: false } : r)
+      );
+    }
+  };
+
+  const toggleExpand = (modelId: string) => {
     setReviews(prev =>
-      prev.map(r =>
-        r.expertId === expertId ? { ...r, isExpanded: !r.isExpanded } : r
-      )
+      prev.map(r => r.modelId === modelId ? { ...r, isExpanded: !r.isExpanded } : r)
     );
   };
 
-  const handleCustomSubmit = () => {
-    if (!inputValue.trim()) return;
-    const prompt = inputValue.trim();
-    setInputValue('');
-    runEvaluation(prompt);
-  };
-
-  // Parse tags from review content
   const extractTags = (content: string): string[] => {
     const tags: string[] = [];
-    // Match quoted terms, book titles, key terms
     const matches = content.match(/[「"']([^"'」]{2,10})["'」]/g);
     if (matches) {
       matches.forEach(m => {
@@ -427,30 +675,30 @@ export default function ExpertReviewPanel({
         if (tag && !tags.includes(tag)) tags.push(tag);
       });
     }
-    return tags.slice(0, 6);
+    return tags.slice(0, 5);
   };
 
-  // Module label
+  const module = activeNote?.module || 'general';
   const moduleLabel = module === 'novel' ? '小说' : module === 'academic' ? '学术' : '通用';
-  const moduleColor = module === 'novel' ? '#c084fc' : module === 'academic' ? '#dcb862' : '#569cd6';
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: 'rgba(30,30,30,0.5)' }}>
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <div className="flex items-center gap-1.5">
-          <Sparkles size={13} color={moduleColor} />
-          <span className="text-[12px] font-medium" style={{ color: '#d4d4d4' }}>
-            {moduleLabel}专家评估
-          </span>
+          <BrainCircuit size={13} color="#dcb862" />
+          <span className="text-[12px] font-medium" style={{ color: '#d4d4d4' }}>思维触发</span>
           {kimi.hasKey && (
             <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded-full" style={{ color: '#4ec9b0', backgroundColor: 'rgba(78,201,176,0.1)' }}>
               <Zap size={8} />
-              已连接
+              {triggeredModels.length > 0 ? `${triggeredModels.length}位触发` : '待命'}
             </span>
           )}
         </div>
         <div className="flex items-center gap-1">
+          <button className="w-5 h-5 flex items-center justify-center" style={{ color: '#858585' }} onClick={handleManualTrigger} title="重新分析">
+            <Compass size={11} />
+          </button>
           <button className="w-5 h-5 flex items-center justify-center" style={{ color: '#858585' }} onClick={() => { setShowSettings(!showSettings); setKeyInput(''); }} title="API设置">
             <Settings size={11} />
           </button>
@@ -460,45 +708,45 @@ export default function ExpertReviewPanel({
         </div>
       </div>
 
+      {/* Trigger Status Bar */}
+      {triggeredModels.length > 0 && !isAnalyzing && (
+        <div className="flex items-center gap-1 px-3 py-1.5 shrink-0 overflow-x-auto scrollbar-hidden" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', backgroundColor: 'rgba(220,184,98,0.03)' }}>
+          <Bell size={9} color="#dcb862" className="shrink-0" />
+          {triggeredModels.map(({ model, relevance }) => (
+            <span
+              key={model.id}
+              className="text-[9px] px-1.5 py-0.5 rounded-full whitespace-nowrap shrink-0"
+              style={{ color: model.color, backgroundColor: model.bgColor, border: `1px solid ${model.borderColor}` }}
+            >
+              {model.name} ({(relevance * 100).toFixed(0)}%)
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* API Key Settings */}
       {showSettings && (
         <div className="px-3 py-2.5 shrink-0 space-y-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', backgroundColor: 'rgba(30,30,30,0.6)' }}>
           <div className="flex items-center gap-1.5">
             <Key size={11} color="#dcb862" />
-            <span className="text-[11px] font-medium" style={{ color: '#d4d4d4' }}>Kimi API Key 设置</span>
+            <span className="text-[11px] font-medium" style={{ color: '#d4d4d4' }}>Kimi API Key</span>
           </div>
           <div className="flex gap-1.5">
-            <input
-              type="password"
-              value={keyInput}
-              onChange={e => setKeyInput(e.target.value)}
-              placeholder="sk-..."
-              className="flex-1 px-2 py-1 rounded text-[11px] outline-none"
-              style={{ backgroundColor: '#1e1e1e', color: '#d4d4d4' }}
-            />
-            <button
-              className="px-2 py-1 rounded text-[10px]"
-              style={{ color: '#1e1e1e', backgroundColor: '#dcb862' }}
-              onClick={() => { kimi.setApiKey(keyInput); setKeyInput(''); setError(''); }}
-            >
-              保存
-            </button>
+            <input type="password" value={keyInput} onChange={e => setKeyInput(e.target.value)} placeholder="sk-..."
+              className="flex-1 px-2 py-1 rounded text-[11px] outline-none" style={{ backgroundColor: '#1e1e1e', color: '#d4d4d4' }} />
+            <button className="px-2 py-1 rounded text-[10px]" style={{ color: '#1e1e1e', backgroundColor: '#dcb862' }}
+              onClick={() => { kimi.setApiKey(keyInput); setKeyInput(''); setError(''); }}>保存</button>
           </div>
           {kimi.hasKey && (
             <div className="flex items-center justify-between">
-              <span className="text-[9px]" style={{ color: '#4ec9b0' }}>✓ API Key 已设置</span>
-              <button className="flex items-center gap-1 text-[9px]" style={{ color: '#e74c3c' }} onClick={kimi.clearApiKey}>
-                <Trash2 size={8} /> 清除
-              </button>
+              <span className="text-[9px]" style={{ color: '#4ec9b0' }}>✓ 已连接</span>
+              <button className="text-[9px]" style={{ color: '#e74c3c' }} onClick={kimi.clearApiKey}>清除</button>
             </div>
           )}
-          <p className="text-[9px]" style={{ color: '#858585' }}>
-            在 <a href="https://platform.moonshot.cn/" target="_blank" rel="noopener noreferrer" style={{ color: '#569cd6' }}>platform.moonshot.cn</a> 获取 API Key
-          </p>
         </div>
       )}
 
-      {/* Error banner */}
+      {/* Error */}
       {error && (
         <div className="flex items-center gap-1.5 px-3 py-1.5 shrink-0" style={{ backgroundColor: 'rgba(231,76,60,0.1)', borderBottom: '1px solid rgba(231,76,60,0.15)' }}>
           <AlertCircle size={11} color="#e74c3c" />
@@ -507,213 +755,123 @@ export default function ExpertReviewPanel({
       )}
 
       {!kimi.hasKey ? (
-        // No API Key State
         <div className="flex flex-col items-center justify-center h-full gap-3 py-6 px-4">
           <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'rgba(220,184,98,0.1)' }}>
             <Key size={20} color="#dcb862" />
           </div>
-          <div className="text-center space-y-1">
-            <p className="text-[12px] font-medium" style={{ color: '#d4d4d4' }}>接入多专家评估系统</p>
-            <p className="text-[10px]" style={{ color: '#858585' }}>输入 API Key 即可启用专家评估</p>
-          </div>
-          <div className="w-full max-w-[240px] space-y-1.5 mt-2">
-            <input
-              type="password"
-              value={keyInput}
-              onChange={e => setKeyInput(e.target.value)}
-              placeholder="sk-..."
+          <p className="text-[12px] font-medium" style={{ color: '#d4d4d4' }}>接入古今思维模型</p>
+          <p className="text-[10px]" style={{ color: '#858585' }}>输入 API Key 启用自动触发</p>
+          <div className="w-full max-w-[240px] space-y-1.5">
+            <input type="password" value={keyInput} onChange={e => setKeyInput(e.target.value)} placeholder="sk-..."
               className="w-full px-2.5 py-1.5 rounded text-[11px] outline-none"
-              style={{ backgroundColor: '#1e1e1e', color: '#d4d4d4', border: '1px solid rgba(255,255,255,0.08)' }}
-            />
-            <button
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded text-[11px] transition-colors"
-              style={{ color: '#1e1e1e', backgroundColor: keyInput.trim().startsWith('sk-') ? '#dcb862' : '#dcb86288' }}
-              onClick={() => { if (keyInput.trim()) { kimi.setApiKey(keyInput); setKeyInput(''); setError(''); } }}
-            >
-              <Key size={11} /> 保存并连接
-            </button>
+              style={{ backgroundColor: '#1e1e1e', color: '#d4d4d4', border: '1px solid rgba(255,255,255,0.08)' }} />
+            <button className="w-full py-1.5 rounded text-[11px]" style={{ color: '#1e1e1e', backgroundColor: '#dcb862' }}
+              onClick={() => { if (keyInput.trim()) { kimi.setApiKey(keyInput); setKeyInput(''); } }}>保存并连接</button>
           </div>
-          <p className="text-[9px] text-center" style={{ color: '#858585' }}>
-            API Key 仅保存在本地，不会上传至任何服务器
-          </p>
         </div>
       ) : !activeNote ? (
-        // No active note
         <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
-          <GraduationCap size={20} color="rgba(133,133,133,0.3)" />
-          <span className="text-[11px]" style={{ color: '#858585' }}>选择一个笔记开始专家评估</span>
+          <BrainCircuit size={20} color="rgba(133,133,133,0.3)" />
+          <span className="text-[11px]" style={{ color: '#858585' }}>选择笔记开始编辑，AI自动触发思维分析</span>
         </div>
       ) : (
         <>
-          {/* Expert Selection Bar */}
-          <div className="shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="flex items-center gap-1 px-2 py-1.5 overflow-x-auto scrollbar-hidden">
-              {availableExperts.map(expert => {
-                const isSelected = selectedExperts.has(expert.id);
-                return (
-                  <button
-                    key={expert.id}
-                    className="flex items-center gap-1 px-2 py-1 rounded text-[10px] whitespace-nowrap transition-all shrink-0"
-                    style={{
-                      color: isSelected ? expert.color : '#858585',
-                      backgroundColor: isSelected ? expert.bgColor : 'transparent',
-                      border: `1px solid ${isSelected ? expert.borderColor : 'rgba(255,255,255,0.06)'}`,
-                    }}
-                    onClick={() => toggleExpert(expert.id)}
-                    title={expert.title}
-                  >
-                    {expert.icon}
-                    {expert.name}
-                    {isSelected && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: expert.color }} />}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex items-center gap-2 px-3 pb-1.5">
-              <button className="text-[9px]" style={{ color: '#569cd6' }} onClick={selectAll}>全选</button>
-              <span style={{ color: 'rgba(255,255,255,0.1)' }}>|</span>
-              <button className="text-[9px]" style={{ color: '#858585' }} onClick={clearAll}>清空</button>
-              <span className="text-[9px] ml-auto" style={{ color: '#858585' }}>
-                已选 {selectedExperts.size} 位专家
-              </span>
-            </div>
+          {/* Trigger hint */}
+          <div className="px-3 py-1.5 shrink-0 flex items-center gap-1.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+            <Timer size={9} color="#858585" />
+            <span className="text-[9px]" style={{ color: '#858585' }}>
+              {isAnalyzing ? '分析中...' : activeNote.content.length < 20 ? '输入20字以上自动触发' : '停止输入2秒后自动触发'}
+            </span>
           </div>
 
-          {/* Evaluation Button */}
-          <div className="px-3 py-2 shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <button
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded text-[11px] font-medium transition-all"
-              style={{
-                color: '#1e1e1e',
-                backgroundColor: selectedExperts.size > 0 && !isEvaluating ? moduleColor : `${moduleColor}55`,
-                cursor: selectedExperts.size > 0 && !isEvaluating ? 'pointer' : 'not-allowed',
-              }}
-              onClick={() => runEvaluation()}
-              disabled={selectedExperts.size === 0 || isEvaluating}
-            >
-              {isEvaluating ? (
-                <><Loader2 size={12} className="animate-spin" /> 评估进行中...</>
-              ) : (
-                <><Sparkles size={12} /> 开始{moduleLabel}专家评估</>
-              )}
-            </button>
-          </div>
-
-          {/* Reviews Display */}
+          {/* Reviews */}
           <div className="flex-1 overflow-y-auto scrollbar-hidden px-2 py-2 space-y-2">
-            {reviews.length === 0 && !isEvaluating && (
+            {reviews.length === 0 && (
               <div className="text-center py-6">
-                <GraduationCap size={28} color="rgba(133,133,133,0.2)" className="mx-auto mb-2" />
-                <p className="text-[11px]" style={{ color: '#858585' }}>
-                  选择专家后点击"开始评估"
-                </p>
-                <p className="text-[9px] mt-1" style={{ color: '#858585' }}>
-                  {module === 'novel' ? '文学评论家 + 叙事结构师 + 语言风格师 + 读者代表将同时给出评估' :
-                   module === 'academic' ? '方法论专家 + 文献综述专家 + 逻辑论证专家 + 同行评审员将同时给出评估' :
-                   '内容分析师 + 写作顾问 + 知识策展人将同时给出评估'}
-                </p>
+                <BrainCircuit size={28} color="rgba(133,133,133,0.2)" className="mx-auto mb-2" />
+                <p className="text-[11px]" style={{ color: '#858585' }}>开始编辑内容</p>
+                <p className="text-[9px] mt-1" style={{ color: '#858585' }}>孔子·老子·苏格拉底·牛顿等会自动根据内容触发</p>
               </div>
             )}
 
-            {reviews.map(review => {
-              const expert = EXPERT_ROLES.find(e => e.id === review.expertId);
-              return (
-                <div
-                  key={review.expertId}
-                  className="rounded-md overflow-hidden"
-                  style={{
-                    backgroundColor: 'rgba(255,255,255,0.03)',
-                    border: `1px solid ${review.isLoading ? 'rgba(255,255,255,0.06)' : expert?.borderColor || 'rgba(255,255,255,0.06)'}`,
-                  }}
-                >
-                  {/* Expert Header */}
-                  <div
-                    className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none"
-                    style={{ backgroundColor: expert?.bgColor || 'transparent' }}
-                    onClick={() => toggleExpand(review.expertId)}
-                  >
-                    <span style={{ color: expert?.color || '#858585' }}>{expert?.icon}</span>
-                    <span className="text-[11px] font-medium" style={{ color: expert?.color || '#d4d4d4' }}>
-                      {review.expertName}
-                    </span>
-                    {review.isLoading && (
-                      <Loader2 size={10} className="animate-spin" style={{ color: expert?.color }} />
-                    )}
-                    {!review.isLoading && review.content && (
-                      <span className="text-[9px] px-1 rounded" style={{ color: '#4ec9b0', backgroundColor: 'rgba(78,201,176,0.1)' }}>
-                        完成
-                      </span>
-                    )}
-                    <span className="ml-auto" style={{ color: '#858585' }}>
-                      {review.isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                    </span>
-                  </div>
-
-                  {/* Review Content */}
-                  {review.isExpanded && (
-                    <div className="px-2.5 py-2">
-                      {review.isLoading && !review.content ? (
-                        <div className="flex items-center gap-1.5 py-2">
-                          <Loader2 size={10} className="animate-spin" style={{ color: expert?.color }} />
-                          <span className="text-[10px]" style={{ color: '#858585' }}>正在评估中...</span>
-                        </div>
-                      ) : (
-                        <>
-                          <div
-                            className="text-[11px] leading-relaxed whitespace-pre-wrap"
-                            style={{ color: '#ccc' }}
-                          >
-                            {review.content || '等待评估...'}
-                          </div>
-                          {/* Extracted Tags */}
-                          {!review.isLoading && review.content && (
-                            <div className="flex flex-wrap gap-1 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                              {extractTags(review.content).map((tag, i) => (
-                                <button
-                                  key={i}
-                                  className="text-[9px] px-1.5 py-0.5 rounded-full transition-colors"
-                                  style={{ color: expert?.color, backgroundColor: expert?.bgColor, border: `1px solid ${expert?.borderColor}` }}
-                                  onClick={() => activeNote && onAddTag(activeNote.id, tag)}
-                                  title="点击添加为标签"
-                                >
-                                  + {tag}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </>
-                      )}
+            {reviews.sort((a, b) => b.timestamp - a.timestamp).map(review => (
+              <div key={review.modelId} className="rounded-md overflow-hidden"
+                style={{ backgroundColor: 'rgba(255,255,255,0.03)', border: `1px solid ${review.isLoading ? 'rgba(255,255,255,0.06)' : `${review.color}20`}` }}>
+                <div className="flex items-center gap-2 px-2.5 py-1.5 cursor-pointer select-none"
+                  style={{ backgroundColor: `${review.color}08` }} onClick={() => toggleExpand(review.modelId)}>
+                  <span style={{ color: review.color }}>
+                    {THINKING_MODELS.find(m => m.id === review.modelId)?.icon || <BrainCircuit size={13} />}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-medium" style={{ color: review.color }}>{review.modelName}</span>
+                      {review.modelEra && <span className="text-[8px] px-1 rounded" style={{ color: '#858585', backgroundColor: 'rgba(255,255,255,0.05)' }}>{review.modelEra}</span>}
                     </div>
+                    {review.modelDomain && <span className="text-[8px]" style={{ color: '#858585' }}>{review.modelDomain}</span>}
+                  </div>
+                  {review.isLoading && <Loader2 size={10} className="animate-spin" style={{ color: review.color }} />}
+                  {!review.isLoading && review.content && (
+                    <span className="text-[8px] px-1 rounded" style={{ color: '#4ec9b0', backgroundColor: 'rgba(78,201,176,0.1)' }}>✓</span>
                   )}
+                  <span style={{ color: '#858585' }}>{review.isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}</span>
                 </div>
-              );
-            })}
+
+                {review.isExpanded && (
+                  <div className="px-2.5 py-2">
+                    {review.isLoading && !review.content ? (
+                      <div className="flex items-center gap-1.5 py-2">
+                        <Loader2 size={10} className="animate-spin" style={{ color: review.color }} />
+                        <span className="text-[10px]" style={{ color: '#858585' }}>思考中...</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: '#ccc' }}>
+                          {review.content || '等待触发...'}
+                        </div>
+                        {!review.isLoading && review.content && activeNote && (
+                          <div className="flex flex-wrap gap-1 mt-2 pt-2" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                            {extractTags(review.content).map((tag, i) => (
+                              <button key={i} className="text-[9px] px-1.5 py-0.5 rounded-full"
+                                style={{ color: review.color, backgroundColor: `${review.color}15`, border: `1px solid ${review.color}30` }}
+                                onClick={() => onAddTag(activeNote.id, tag)}>+ {tag}</button>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Custom Input */}
           <div className="flex items-center gap-1 px-2 py-2 shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <MessageCircle size={10} color="#858585" className="shrink-0" />
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleCustomSubmit(); }}
-              placeholder={`向${moduleLabel}专家提问...`}
-              className="flex-1 bg-transparent outline-none text-[11px]"
-              style={{ color: '#d4d4d4' }}
-              disabled={isEvaluating}
-            />
-            <button
-              className="w-6 h-6 flex items-center justify-center rounded transition-colors shrink-0"
-              style={{ color: inputValue.trim() && !isEvaluating ? moduleColor : '#858585' }}
-              onClick={handleCustomSubmit}
-              disabled={isEvaluating || !inputValue.trim()}
-            >
-              <Send size={11} />
+            <Hash size={10} color="#858585" className="shrink-0" />
+            <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleCustomQuestion(); }}
+              placeholder="向古今大家提问..." disabled={isAnalyzing}
+              className="flex-1 bg-transparent outline-none text-[11px]" style={{ color: '#d4d4d4' }} />
+            <button className="w-6 h-6 flex items-center justify-center rounded transition-colors shrink-0"
+              style={{ color: inputValue.trim() && !isAnalyzing ? '#dcb862' : '#858585' }}
+              onClick={handleCustomQuestion} disabled={isAnalyzing || !inputValue.trim()}>
+              <Sparkles size={11} />
             </button>
           </div>
         </>
       )}
     </div>
   );
+}
+
+// Helper
+function buildNoteContext(note: Note, allNotes: Note[]): string {
+  const related = allNotes
+    .filter(n => n.id !== note.id && (n.linkedNoteIds.includes(note.id) || note.linkedNoteIds.includes(n.id)))
+    .slice(0, 3);
+  let ctx = `【当前笔记】\n标题：${note.title}\n模块：${note.module}\n\n内容（前1200字）：\n${note.content.slice(0, 1200)}${note.content.length > 1200 ? '...' : ''}`;
+  if (related.length > 0) ctx += `\n\n【关联】${related.map(n => n.title).join('、')}`;
+  return ctx;
 }
