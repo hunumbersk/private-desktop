@@ -22,7 +22,13 @@ export function getDb() {
   if (!instance) {
     const dbUrl = env.databaseUrl;
     ensureDataDir(dbUrl);
-    client = createClient({ url: dbUrl });
+    // Support Turso remote DB with auth token
+    const authToken = process.env.DATABASE_AUTH_TOKEN;
+    if (authToken && (dbUrl.includes("turso.io") || dbUrl.includes("libsql"))) {
+      client = createClient({ url: dbUrl, authToken });
+    } else {
+      client = createClient({ url: dbUrl });
+    }
     instance = drizzle(client, { schema });
   }
   return instance;

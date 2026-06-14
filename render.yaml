@@ -11,10 +11,12 @@ services:
         value: production
       - key: PORT
         value: "3000"
-      # SQLite file DB - data persists during instance lifetime
-      # For persistent storage, upgrade to paid plan or use Turso
+      # Turso SQLite database - persistent across deploys
       - key: DATABASE_URL
-        value: file:./data/app.db
+        value: libsql://private-desktop-sxd2215.turso.io
+      # Get token: turso db tokens create private-desktop
+      - key: DATABASE_AUTH_TOKEN
+        sync: false
       # Kimi OAuth optional
       - key: APP_ID
         value: ""
