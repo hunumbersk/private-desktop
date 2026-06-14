@@ -1,163 +1,123 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 
 export interface DesktopItem {
   id: string;
   name: string;
-  type: 'file' | 'folder' | 'dialogue' | 'image' | 'text' | 'link';
+  type: 'folder' | 'text' | 'image' | 'file';
   icon: string;
+  content?: string;
   x: number;
   y: number;
-  content?: string;
-  createdAt: string;
-  source?: 'internal' | 'external';
+  source?: string;
 }
 
-export interface Message {
+const STORAGE_KEY = 'private-desktop-items';
+
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+}
+
+function loadItems(): DesktopItem[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Strict validation: must be array of objects with required fields
+      if (Array.isArray(parsed) && parsed.length >= 0) {
+        const valid = parsed.filter(
+          (item): item is DesktopItem =>
+            item &&
+            typeof item === 'object' &&
+            typeof item.id === 'string' &&
+            typeof item.name === 'string' &&
+            typeof item.type === 'string' &&
+            typeof item.x === 'number' &&
+            typeof item.y === 'number'
+        );
+        if (valid.length > 0 || parsed.length === 0) {
+          return valid;
+        }
+      }
+    }
+  } catch {
+    // ignore parse errors
+  }
+  // Return defaults if storage is empty or corrupted
+  return getDefaultItems();
+}
+
+function getDefaultItems(): DesktopItem[] {
+  return [
+    { id: 'item-1', name: '对话.txt', type: 'text', icon: 'file-text', x: 40, y: 40 },
+    { id: 'item-2', name: '文档', type: 'folder', icon: 'folder', x: 40, y: 140 },
+    { id: 'item-3', name: '图片', type: 'folder', icon: 'folder', x: 40, y: 240 },
+    { id: 'item-4', name: '菜谱本', type: 'text', icon: 'file-text', x: 140, y: 40 },
+    { id: 'item-5', name: '阅读清单', type: 'text', icon: 'file-text', x: 140, y: 140 },
+  ];
+}
+
+function saveItems(items: DesktopItem[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+// ============ Dialogue Messages ============
+
+export interface DialogueMessage {
   id: string;
   role: 'user' | 'ai';
   content: string;
   isCommand?: boolean;
-  timestamp: string;
 }
 
-interface SecuritySettings {
-  securityLevel: 'maximum';
-  allowImport: boolean;
-  allowExport: boolean;
-  allowDownload: boolean;
-  importCount: number;
-  exportCount: number;
-}
+const DIALOGUE_KEY = 'private-dialogue-messages';
 
-const STORAGE_KEYS = {
-  desktopItems: 'private-desktop-items',
-  dialogueMessages: 'private-dialogue-messages',
-  desktopSettings: 'private-desktop-settings',
-};
-
-const defaultDesktopItems: DesktopItem[] = [
-  {
-    id: 'folder-docs',
-    name: '文档',
-    type: 'folder',
-    icon: 'folder',
-    x: 40,
-    y: 160,
-    createdAt: new Date().toISOString(),
-    source: 'internal',
-  },
-  {
-    id: 'folder-images',
-    name: '图片',
-    type: 'folder',
-    icon: 'image',
-    x: 40,
-    y: 280,
-    createdAt: new Date().toISOString(),
-    source: 'internal',
-  },
-];
-
-const defaultSettings: SecuritySettings = {
-  securityLevel: 'maximum',
-  allowImport: true,
-  allowExport: false,
-  allowDownload: true,
-  importCount: 0,
-  exportCount: 0,
-};
-
-function loadFromStorage<T>(key: string, fallback: T): T {
+function loadDialogue(): DialogueMessage[] {
   try {
-    const stored = localStorage.getItem(key);
-    if (stored) return JSON.parse(stored);
-  } catch {
-    // ignore
-  }
-  return fallback;
+    const stored = localStorage.getItem(DIALOGUE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        return parsed.filter(
+          (m): m is DialogueMessage =>
+            m && typeof m === 'object' && typeof m.id === 'string' && typeof m.content === 'string' && (m.role === 'user' || m.role === 'ai')
+        );
+      }
+    }
+  } catch { /* ignore */ }
+  return [];
 }
 
-function saveToStorage(key: string, data: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch {
-    // ignore
-  }
-}
-
-export function useDesktopItems() {
-  const [items, setItems] = useState<DesktopItem[]>(() =>
-    loadFromStorage(STORAGE_KEYS.desktopItems, defaultDesktopItems)
-  );
-
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.desktopItems, items);
-  }, [items]);
-
-  const addItem = useCallback((item: Omit<DesktopItem, 'id' | 'createdAt'>) => {
-    const newItem: DesktopItem = {
-      ...item,
-      id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      createdAt: new Date().toISOString(),
-    };
-    setItems((prev) => [...prev, newItem]);
-    return newItem.id;
-  }, []);
-
-  const updateItem = useCallback((id: string, updates: Partial<DesktopItem>) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...updates } : item)));
-  }, []);
-
-  const removeItem = useCallback((id: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== id));
-  }, []);
-
-  const moveItem = useCallback((id: string, x: number, y: number) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, x, y } : item)));
-  }, []);
-
-  return { items, addItem, updateItem, removeItem, moveItem };
+function saveDialogue(messages: DialogueMessage[]) {
+  try { localStorage.setItem(DIALOGUE_KEY, JSON.stringify(messages)); } catch { /* ignore */ }
 }
 
 export function useDialogueMessages() {
-  const [messages, setMessages] = useState<Message[]>(() =>
-    loadFromStorage(STORAGE_KEYS.dialogueMessages, [])
-  );
+  const [messages, setMessages] = useState<DialogueMessage[]>(loadDialogue);
 
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.dialogueMessages, messages);
-  }, [messages]);
-
-  const addMessage = useCallback((msg: Omit<Message, 'id' | 'timestamp'>) => {
-    const newMsg: Message = {
-      ...msg,
-      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      timestamp: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, newMsg]);
-    return newMsg.id;
+  const addMessage = useCallback((msg: Omit<DialogueMessage, 'id'>) => {
+    setMessages((prev) => {
+      const next = [...prev, { ...msg, id: generateId() }];
+      saveDialogue(next);
+      return next;
+    });
   }, []);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
+    saveDialogue([]);
   }, []);
 
   const exportMessages = useCallback(() => {
-    const content = messages
-      .map((m) => {
-        const time = new Date(m.timestamp).toLocaleString('zh-CN');
-        const prefix = m.role === 'user' ? '[我]' : '[助手]';
-        return `${time} ${prefix}\n${m.content}\n`;
-      })
-      .join('\n---\n\n');
-
-    const blob = new Blob([`=== 私密对话记录 ===\n导出时间：${new Date().toLocaleString('zh-CN')}\n\n${content}`], {
-      type: 'text/plain;charset=utf-8',
-    });
+    const text = messages.map((m) => `${m.role === 'user' ? '你' : 'AI'}: ${m.content}`).join('\n\n');
+    const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `私密对话_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.download = `对话记录-${new Date().toISOString().slice(0, 10)}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -167,22 +127,48 @@ export function useDialogueMessages() {
   return { messages, addMessage, clearMessages, exportMessages };
 }
 
-export function useSecuritySettings() {
-  const [settings, setSettings] = useState<SecuritySettings>(() =>
-    loadFromStorage(STORAGE_KEYS.desktopSettings, defaultSettings)
-  );
+// ============ Desktop Items ============
 
-  useEffect(() => {
-    saveToStorage(STORAGE_KEYS.desktopSettings, settings);
-  }, [settings]);
+export function useDesktopItems() {
+  const [items, setItems] = useState<DesktopItem[]>(loadItems);
 
-  const logImport = useCallback(() => {
-    setSettings((prev) => ({ ...prev, importCount: prev.importCount + 1 }));
+  const addItem = useCallback((item: Omit<DesktopItem, 'id'>) => {
+    setItems((prev) => {
+      const next = [...(Array.isArray(prev) ? prev : []), { ...item, id: generateId() }];
+      saveItems(next);
+      return next;
+    });
   }, []);
 
-  const logExport = useCallback(() => {
-    setSettings((prev) => ({ ...prev, exportCount: prev.exportCount + 1 }));
+  const updateItem = useCallback((id: string, updates: Partial<DesktopItem>) => {
+    setItems((prev) => {
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.map((item) => (item.id === id ? { ...item, ...updates } : item));
+      saveItems(next);
+      return next;
+    });
   }, []);
 
-  return { settings, logImport, logExport };
+  const removeItem = useCallback((id: string) => {
+    setItems((prev) => {
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.filter((item) => item.id !== id);
+      saveItems(next);
+      return next;
+    });
+  }, []);
+
+  const moveItem = useCallback((id: string, x: number, y: number) => {
+    setItems((prev) => {
+      if (!Array.isArray(prev)) return prev;
+      const next = prev.map((item) => (item.id === id ? { ...item, x, y } : item));
+      saveItems(next);
+      return next;
+    });
+  }, []);
+
+  // Safety: always ensure items is an array
+  const safeItems = Array.isArray(items) ? items : getDefaultItems();
+
+  return { items: safeItems, addItem, updateItem, removeItem, moveItem };
 }

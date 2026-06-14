@@ -10,9 +10,6 @@ import {
 import DesktopIcon from '@/components/DesktopIcon';
 import ContextMenu from '@/components/ContextMenu';
 import TextViewer from '@/components/TextViewer';
-import TopBar from '@/components/TopBar';
-import StatusBar from '@/components/StatusBar';
-
 import Notepad from '@/components/Notepad';
 import Cookbook from '@/components/Cookbook';
 import CatDesktop from '@/components/CatDesktop';
@@ -37,7 +34,7 @@ export default function DesktopPage() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: ContextMenuType; itemId?: string } | null>(null);
   const [viewerState, setViewerState] = useState<{ title: string; content: string } | null>(null);
-
+  const [activeApp, setActiveApp] = useState<string | null>(null);
 
   const desktopRef = useRef<HTMLDivElement>(null);
 
@@ -80,6 +77,10 @@ export default function DesktopPage() {
     }
   }, []);
 
+  const handleMoveItem = useCallback((id: string, x: number, y: number) => {
+    moveItem(id, x, y);
+  }, [moveItem]);
+
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files);
@@ -102,69 +103,88 @@ export default function DesktopPage() {
     });
   }, [addItem]);
 
-
+  const windowDecorations = (app: string) => ({ active: activeApp === app, onActivate: () => setActiveApp(app) });
 
   if (!isReady) return (
-    <div style={{ width:'100vw',height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',backgroundColor:'#1e1e1e',gap:8 }}>
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1e1e1e', gap: 8 }}>
       <Loader2 size={20} color="#dcb862" className="animate-spin" />
-      <span style={{ color:'#858585',fontSize:12 }}>Loading...</span>
+      <span style={{ color: '#858585', fontSize: 12 }}>正在连接服务...</span>
     </div>
   );
 
   if (isReady && !isAuthenticated) return (
-    <div style={{ width:'100vw',height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(30,30,30,0.92)' }}>
-      <div style={{ textAlign:'center',maxWidth:280 }}>
-        <Lock size={32} color="#dcb862" style={{ margin:'0 auto 12px' }} />
-        <p style={{ color:'#d4d4d4',fontSize:14,fontWeight:500 }}>私密虚拟桌面</p>
-        <p style={{ color:'#858585',fontSize:11,marginTop:4 }}>注册账号以启用跨设备数据同步</p>
-        <div style={{ marginTop:16,display:'flex',flexDirection:'column',gap:8 }}>
-          <button onClick={()=>window.location.href='/#/login'} style={{ padding:'8px 16px',borderRadius:4,border:'none',backgroundColor:'#dcb862',color:'#1e1e1e',fontSize:12,cursor:'pointer',fontWeight:500 }}>登录 / 注册</button>
-          <button onClick={bypassLogin} style={{ padding:'8px 16px',borderRadius:4,border:'1px solid rgba(255,255,255,0.1)',backgroundColor:'rgba(255,255,255,0.05)',color:'#aaa',fontSize:11,cursor:'pointer' }}>本地模式</button>
+    <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(30,30,30,0.92)' }}>
+      <div style={{ textAlign: 'center', maxWidth: '280px' }}>
+        <Lock size={32} color="#dcb862" style={{ margin: '0 auto 12px' }} />
+        <p style={{ color: '#d4d4d4', fontSize: 14 }}>私密虚拟桌面</p>
+        <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button onClick={() => window.location.href = '/#/login'} style={{ padding: '8px 16px', borderRadius: 4, border: 'none', backgroundColor: '#dcb862', color: '#1e1e1e', fontSize: 12, cursor: 'pointer' }}>登录 / 注册</button>
+          <button onClick={bypassLogin} style={{ padding: '8px 16px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: '#aaa', fontSize: 11, cursor: 'pointer' }}>本地模式</button>
         </div>
       </div>
     </div>
   );
 
+  // Safety check for items
+  const safeItems = Array.isArray(items) ? items : [];
+
   return (
-    <div ref={desktopRef} style={{ width:'100vw',height:'100vh',overflow:'hidden',position:'relative',backgroundColor:'#1a1a1a' }} onContextMenu={handleDesktopContextMenu} onDragOver={(e)=>e.preventDefault()} onDrop={handleDrop}>
-      {/* CSS Background - no Three.js */}
-      <div style={{ position:'absolute',inset:0,background:'radial-gradient(ellipse at center,#1a1a1a 0%,#0d0d0d 100%)',zIndex:0 }} />
+    <div ref={desktopRef} style={{ width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative', backgroundColor: '#1a1a1a' }} onContextMenu={handleDesktopContextMenu} onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
+      {/* Background */}
+      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, #1a1a1a 0%, #0d0d0d 100%)', zIndex: 0 }} />
 
-      <div style={{ position:'relative',zIndex:2,display:'flex',flexDirection:'column',height:'100%' }}>
-        <TopBar userName={user?.name||'访客'} onLogout={isAuthenticated?logout:undefined} />
+      <div style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {/* Top bar */}
+        <div style={{ height: 36, backgroundColor: '#1e1e1e', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', fontSize: 12, color: '#858585' }}>
+          <span>私密虚拟桌面 / <span style={{ color: '#569cd6' }}>工作区</span></span>
+          {user?.name && <span style={{ color: '#aaa' }}>{user.name}</span>}
+          {isAuthenticated && <button onClick={logout} style={{ fontSize: 10, background: 'transparent', border: 'none', color: '#858585', cursor: 'pointer' }}>退出</button>}
+        </div>
 
-        <div style={{ flex:1,position:'relative',overflow:'hidden' }}>
-          {items.map((item) => (
+        {/* Desktop icons */}
+        <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+          {safeItems.map((item) => (
             <DesktopIcon
               key={item.id}
               item={item}
-              isSelected={selectedItemId===item.id}
-              onSelect={()=>setSelectedItemId(item.id)}
-              onDoubleClick={()=>handleItemDoubleClick(item)}
-              onContextMenu={(e)=>handleItemContextMenu(e,item.id)}
-              onMove={(id,x,y)=>moveItem(id,x,y)}
+              isSelected={selectedItemId === item.id}
+              onSelect={() => setSelectedItemId(item.id)}
+              onDoubleClick={() => handleItemDoubleClick(item)}
+              onContextMenu={(e) => handleItemContextMenu(e, item.id)}
+              onMove={handleMoveItem}
             />
           ))}
         </div>
 
-        <StatusBar isCloudEnabled={isCloudEnabled} />
+        {/* Status bar */}
+        <div style={{ height: 24, backgroundColor: '#1e1e1e', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', fontSize: 10, color: '#858585' }}>
+          <span>💻 私密桌面</span>
+          <span>📶 {isCloudEnabled ? '云端同步' : '本地存储'}</span>
+        </div>
       </div>
 
-      <ContextMenu x={contextMenu?.x||0} y={contextMenu?.y||0} type={contextMenu?.type||null} onClose={()=>setContextMenu(null)} onCreateFolder={handleCreateFolder} onCreateFile={handleCreateFile} onDelete={handleDeleteItem} onRename={handleRenameItem} />
-      <TextViewer title={viewerState?.title||''} content={viewerState?.content||''} onClose={()=>setViewerState(null)} />
+      {/* Context Menu */}
+      <ContextMenu x={contextMenu?.x || 0} y={contextMenu?.y || 0} type={contextMenu?.type || null} onClose={() => setContextMenu(null)} onCreateFolder={handleCreateFolder} onCreateFile={handleCreateFile} onDelete={handleDeleteItem} onRename={handleRenameItem} />
 
-      <CatDesktop onClick={()=>setDialogueState(dialogueState==='minimized'?'normal':'minimized')} />
+      {/* Text Viewer */}
+      <TextViewer title={viewerState?.title || ''} content={viewerState?.content || ''} onClose={() => setViewerState(null)} />
 
+      {/* Cat Desktop */}
+      <CatDesktop onClick={() => setDialogueState(dialogueState === 'minimized' ? 'normal' : 'minimized')} />
+
+      {/* Terminal Dialog */}
       {isDialogueVisible && (
-        <TerminalDialog onClose={()=>setIsDialogueVisible(false)} onMinimize={()=>setDialogueState('minimized')} isMaximized={dialogueState==='maximized'} onToggleMaximize={()=>setDialogueState(dialogueState==='maximized'?'normal':'maximized')} />
+        <TerminalDialog onClose={() => setIsDialogueVisible(false)} onMinimize={() => setDialogueState('minimized')} isMaximized={dialogueState === 'maximized'} onToggleMaximize={() => setDialogueState(dialogueState === 'maximized' ? 'normal' : 'maximized')} />
       )}
 
+      {/* Notepad */}
       {isNotepadVisible && (
-        <Notepad onClose={()=>setIsNotepadVisible(false)} onMinimize={()=>setNotepadState('minimized')} isMaximized={notepadState==='maximized'} onToggleMaximize={()=>setNotepadState(notepadState==='maximized'?'normal':'maximized')} />
+        <Notepad onClose={() => setIsNotepadVisible(false)} onMinimize={() => setNotepadState('minimized')} isMaximized={notepadState === 'maximized'} onToggleMaximize={() => setNotepadState(notepadState === 'maximized' ? 'normal' : 'maximized')} />
       )}
 
+      {/* Cookbook */}
       {isCookbookVisible && (
-        <Cookbook onClose={()=>setIsCookbookVisible(false)} onMinimize={()=>setCookbookState('minimized')} isMaximized={cookbookState==='maximized'} onToggleMaximize={()=>setCookbookState(cookbookState==='maximized'?'normal':'maximized')} />
+        <Cookbook onClose={() => setIsCookbookVisible(false)} onMinimize={() => setCookbookState('minimized')} isMaximized={cookbookState === 'maximized'} onToggleMaximize={() => setCookbookState(cookbookState === 'maximized' ? 'normal' : 'maximized')} />
       )}
     </div>
   );
