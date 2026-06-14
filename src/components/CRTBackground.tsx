@@ -127,6 +127,17 @@ export default function CRTBackground() {
       container.removeChild(container.firstChild);
     }
 
+    // Check WebGL support
+    let canvas: HTMLCanvasElement;
+    try {
+      canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) throw new Error('WebGL not supported');
+    } catch {
+      // Fallback: show nothing (CSS background will show through)
+      return;
+    }
+
     const w = window.innerWidth;
     const h = window.innerHeight;
 

@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
-// import CRTBackground from '@/components/CRTBackground';
+import CRTBackground from '@/components/CRTBackground';
 import TopBar from '@/components/TopBar';
 import StatusBar from '@/components/StatusBar';
-// import TerminalDialog from '@/components/TerminalDialog';
-// import Notepad from '@/components/Notepad';
-// import Cookbook from '@/components/Cookbook';
-// import CatDesktop from '@/components/CatDesktop';
+import TerminalDialog from '@/components/TerminalDialog';
+import Notepad from '@/components/Notepad';
+import Cookbook from '@/components/Cookbook';
+import CatDesktop from '@/components/CatDesktop';
 import DesktopIcon from '@/components/DesktopIcon';
 import ContextMenu from '@/components/ContextMenu';
 import TextViewer from '@/components/TextViewer';
@@ -30,17 +30,17 @@ export default function DesktopPage() {
   useAutoBackup(10);
   const { items, addItem, updateItem, removeItem, moveItem } = useDesktopItems();
 
-  // const [dialogueState, setDialogueState] = useState<WindowState>('minimized');
-  // const [isDialogueVisible, setIsDialogueVisible] = useState(true);
-  // const [notepadState, setNotepadState] = useState<WindowState>('minimized');
-  // const [isNotepadVisible, setIsNotepadVisible] = useState(true);
-  // const [cookbookState, setCookbookState] = useState<WindowState>('minimized');
-  // const [isCookbookVisible, setIsCookbookVisible] = useState(true);
+  const [dialogueState, setDialogueState] = useState<WindowState>('minimized');
+  const [isDialogueVisible, setIsDialogueVisible] = useState(true);
+  const [notepadState, setNotepadState] = useState<WindowState>('minimized');
+  const [isNotepadVisible, setIsNotepadVisible] = useState(true);
+  const [cookbookState, setCookbookState] = useState<WindowState>('minimized');
+  const [isCookbookVisible, setIsCookbookVisible] = useState(true);
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: ContextMenuType; itemId?: string } | null>(null);
   const [viewerState, setViewerState] = useState<{ title: string; content: string } | null>(null);
-  // const [activeApp, setActiveApp] = useState<string | null>(null);
+  const [activeApp, setActiveApp] = useState<string | null>(null);
 
   const desktopRef = useRef<HTMLDivElement>(null);
   const dragItemRef = useRef<string | null>(null);
@@ -118,6 +118,11 @@ export default function DesktopPage() {
     });
   }, [addItem]);
 
+  const windowDecorations = (app: string) => ({
+    active: activeApp === app,
+    onActivate: () => setActiveApp(app),
+  });
+
   if (!isReady) {
     return (
       <div className="w-screen h-screen flex items-center justify-center" style={{ backgroundColor: '#1e1e1e', gap: 8 }}>
@@ -158,7 +163,7 @@ export default function DesktopPage() {
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
     >
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, #1a1a1a 0%, #0d0d0d 100%)', zIndex: 0 }} />
+      <CRTBackground />
 
       <div className="relative flex flex-col h-full" style={{ zIndex: 2 }}>
         <TopBar userName={user?.name || '访客'} onLogout={isAuthenticated ? logout : undefined} />
@@ -199,14 +204,39 @@ export default function DesktopPage() {
         onClose={() => setViewerState(null)}
       />
 
-      {/* Cat Desktop - minimized for now */}
-      {/* <CatDesktop /> */}
+      <CatDesktop
+        onClick={() => setDialogueState(dialogueState === 'minimized' ? 'normal' : 'minimized')}
+      />
 
-      {/* Notepad - hidden for testing */}
-      {/* <Notepad ... /> */}
+      {isDialogueVisible && (
+        <TerminalDialog
+          state={dialogueState}
+          onMinimize={() => setDialogueState('minimized')}
+          onMaximize={() => setDialogueState(dialogueState === 'maximized' ? 'normal' : 'maximized')}
+          onClose={() => { setIsDialogueVisible(false); }}
+          {...windowDecorations('dialogue')}
+        />
+      )}
 
-      {/* Cookbook - hidden for testing */}
-      {/* <Cookbook ... /> */}
+      {isNotepadVisible && (
+        <Notepad
+          state={notepadState}
+          onMinimize={() => setNotepadState('minimized')}
+          onMaximize={() => setNotepadState(notepadState === 'maximized' ? 'normal' : 'maximized')}
+          onClose={() => setIsNotepadVisible(false)}
+          {...windowDecorations('notepad')}
+        />
+      )}
+
+      {isCookbookVisible && (
+        <Cookbook
+          state={cookbookState}
+          onMinimize={() => setCookbookState('minimized')}
+          onMaximize={() => setCookbookState(cookbookState === 'maximized' ? 'normal' : 'maximized')}
+          onClose={() => setIsCookbookVisible(false)}
+          {...windowDecorations('cookbook')}
+        />
+      )}
     </div>
   );
 }
