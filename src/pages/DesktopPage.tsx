@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router';
 import { Lock, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSync } from '@/hooks/useDataSync';
@@ -19,6 +20,7 @@ type WindowState = 'normal' | 'maximized' | 'minimized';
 type ContextMenuType = 'desktop' | 'item' | null;
 
 export default function DesktopPage() {
+  const navigate = useNavigate();
   const { user, isAuthenticated, isReady, apiHealthy, logout, bypassLogin } = useAuth();
   const { isCloudEnabled } = useDataSync();
   useAutoBackup(10);
@@ -118,7 +120,7 @@ export default function DesktopPage() {
         <Lock size={32} color="#dcb862" style={{ margin: '0 auto 12px' }} />
         <p style={{ color: '#d4d4d4', fontSize: 14 }}>私密虚拟桌面</p>
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button onClick={() => window.location.href = '/#/login'} style={{ padding: '8px 16px', borderRadius: 4, border: 'none', backgroundColor: '#dcb862', color: '#1e1e1e', fontSize: 12, cursor: 'pointer' }}>登录 / 注册</button>
+          <button onClick={() => navigate('/login')} style={{ padding: '8px 16px', borderRadius: 4, border: 'none', backgroundColor: '#dcb862', color: '#1e1e1e', fontSize: 12, cursor: 'pointer' }}>登录 / 注册</button>
           <button onClick={bypassLogin} style={{ padding: '8px 16px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: '#aaa', fontSize: 11, cursor: 'pointer' }}>本地模式</button>
         </div>
       </div>
