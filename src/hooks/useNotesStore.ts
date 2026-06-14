@@ -45,7 +45,13 @@ function loadItems(): Record<string, BinderItem> {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      return parsed;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && Object.keys(parsed).length >= 0) {
+        // Validate at least one entry has expected shape
+        const values = Object.values(parsed);
+        if (values.length === 0 || (values[0] && typeof (values[0] as any).id === 'string')) {
+          return parsed as Record<string, BinderItem>;
+        }
+      }
     }
   } catch { /* ignore */ }
   return createDefaultItems();

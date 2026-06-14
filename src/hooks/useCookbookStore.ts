@@ -361,8 +361,9 @@ function loadRecipes(): Recipe[] {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      // Ensure all recipes have linkUrl field
-      return parsed.map((r: Recipe) => ({ ...r, linkUrl: r.linkUrl || '' }));
+      if (Array.isArray(parsed)) {
+        return parsed.map((r: Recipe) => ({ ...r, linkUrl: r.linkUrl || '' }));
+      }
     }
   } catch { /* ignore */ }
   return defaultRecipes;
