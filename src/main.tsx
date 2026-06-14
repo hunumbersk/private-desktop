@@ -5,6 +5,37 @@ import { TRPCProvider } from '@/providers/trpc'
 import './index.css'
 import App from './App.tsx'
 
+// ====== CRITICAL: Clean corrupted localStorage before React starts ======
+(function sanitizeStorage() {
+  const keys = [
+    'private-desktop-items',
+    'private-desktop-notes-v2',
+    'private-desktop-cookbook-v2',
+    'private-dialogue-messages',
+  ];
+  for (const key of keys) {
+    try {
+      const val = localStorage.getItem(key);
+      if (val === null) continue;
+      const parsed = JSON.parse(val);
+      if (parsed === null || typeof parsed === 'string') {
+        localStorage.removeItem(key); continue;
+      }
+      if (key === 'private-desktop-notes-v2') {
+        if (Array.isArray(parsed) || typeof parsed !== 'object') {
+          localStorage.removeItem(key); continue;
+        }
+      } else {
+        if (!Array.isArray(parsed)) {
+          localStorage.removeItem(key); continue;
+        }
+      }
+    } catch {
+      localStorage.removeItem(key);
+    }
+  }
+})();
+
 // Error boundary to catch startup errors
 class StartupErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
   constructor(props: { children: ReactNode }) {
