@@ -37,7 +37,7 @@ export default function DesktopPage() {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: ContextMenuType; itemId?: string } | null>(null);
   const [viewerState, setViewerState] = useState<{ title: string; content: string } | null>(null);
-  const [activeApp, setActiveApp] = useState<string | null>(null);
+
 
   const desktopRef = useRef<HTMLDivElement>(null);
 
@@ -102,7 +102,7 @@ export default function DesktopPage() {
     });
   }, [addItem]);
 
-  const windowDecorations = (app: string) => ({ active: activeApp === app, onActivate: () => setActiveApp(app) });
+
 
   if (!isReady) return (
     <div style={{ width:'100vw',height:'100vh',display:'flex',alignItems:'center',justifyContent:'center',backgroundColor:'#1e1e1e',gap:8 }}>
@@ -156,15 +156,15 @@ export default function DesktopPage() {
       <CatDesktop onClick={()=>setDialogueState(dialogueState==='minimized'?'normal':'minimized')} />
 
       {isDialogueVisible && (
-        <TerminalDialog state={dialogueState} onMinimize={()=>setDialogueState('minimized')} onMaximize={()=>setDialogueState(dialogueState==='maximized'?'normal':'maximized')} onClose={()=>setIsDialogueVisible(false)} {...windowDecorations('dialogue')} />
+        <TerminalDialog onClose={()=>setIsDialogueVisible(false)} onMinimize={()=>setDialogueState('minimized')} isMaximized={dialogueState==='maximized'} onToggleMaximize={()=>setDialogueState(dialogueState==='maximized'?'normal':'maximized')} />
       )}
 
       {isNotepadVisible && (
-        <Notepad state={notepadState} onMinimize={()=>setNotepadState('minimized')} onMaximize={()=>setNotepadState(notepadState==='maximized'?'normal':'maximized')} onClose={()=>setIsNotepadVisible(false)} {...windowDecorations('notepad')} />
+        <Notepad onClose={()=>setIsNotepadVisible(false)} onMinimize={()=>setNotepadState('minimized')} isMaximized={notepadState==='maximized'} onToggleMaximize={()=>setNotepadState(notepadState==='maximized'?'normal':'maximized')} />
       )}
 
       {isCookbookVisible && (
-        <Cookbook state={cookbookState} onMinimize={()=>setCookbookState('minimized')} onMaximize={()=>setCookbookState(cookbookState==='maximized'?'normal':'maximized')} onClose={()=>setIsCookbookVisible(false)} {...windowDecorations('cookbook')} />
+        <Cookbook onClose={()=>setIsCookbookVisible(false)} onMinimize={()=>setCookbookState('minimized')} isMaximized={cookbookState==='maximized'} onToggleMaximize={()=>setCookbookState(cookbookState==='maximized'?'normal':'maximized')} />
       )}
     </div>
   );
