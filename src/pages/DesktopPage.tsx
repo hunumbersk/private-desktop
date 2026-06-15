@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { Lock, Loader2 } from 'lucide-react';
+import { Lock, Loader2, StickyNote, BookOpen, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useDataSync } from '@/hooks/useDataSync';
 import { useAutoBackup } from '@/hooks/useDataManager';
@@ -21,22 +21,22 @@ type ContextMenuType = 'desktop' | 'item' | null;
 
 export default function DesktopPage() {
   const navigate = useNavigate();
-  const { user, isAuthenticated, isReady, apiHealthy, logout, bypassLogin } = useAuth();
+  const { user, isAuthenticated, isReady, logout, bypassLogin } = useAuth();
   const { isCloudEnabled } = useDataSync();
   useAutoBackup(10);
   const { items, addItem, updateItem, removeItem, moveItem } = useDesktopItems();
 
-  const [dialogueState, setDialogueState] = useState<WindowState>('minimized');
-  const [isDialogueVisible, setIsDialogueVisible] = useState(true);
-  const [notepadState, setNotepadState] = useState<WindowState>('minimized');
-  const [isNotepadVisible, setIsNotepadVisible] = useState(true);
-  const [cookbookState, setCookbookState] = useState<WindowState>('minimized');
-  const [isCookbookVisible, setIsCookbookVisible] = useState(true);
+  // App window states
+  const [notepadOpen, setNotepadOpen] = useState(false);
+  const [notepadState, setNotepadState] = useState<WindowState>('normal');
+  const [cookbookOpen, setCookbookOpen] = useState(false);
+  const [cookbookState, setCookbookState] = useState<WindowState>('normal');
+  const [dialogueOpen, setDialogueOpen] = useState(false);
+  const [dialogueState, setDialogueState] = useState<WindowState>('normal');
 
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; type: ContextMenuType; itemId?: string } | null>(null);
   const [viewerState, setViewerState] = useState<{ title: string; content: string } | null>(null);
-  const [activeApp, setActiveApp] = useState<string | null>(null);
 
   const desktopRef = useRef<HTMLDivElement>(null);
 
@@ -74,7 +74,14 @@ export default function DesktopPage() {
   }, [contextMenu, items, updateItem]);
 
   const handleItemDoubleClick = useCallback((item: DesktopItem) => {
-    if (item.type === 'text' || item.type === 'file') {
+    if (item.type === 'app' && item.appId) {
+      // Open app window
+      switch (item.appId) {
+        case 'notepad': setNotepadOpen(true); setNotepadState('normal'); break;
+        case 'cookbook': setCookbookOpen(true); setCookbookState('normal'); break;
+        case 'dialogue': setDialogueOpen(true); setDialogueState('normal'); break;
+      }
+    } else if (item.type === 'text' || item.type === 'file') {
       setViewerState({ title: item.name, content: item.content || '' });
     }
   }, []);
@@ -105,8 +112,6 @@ export default function DesktopPage() {
     });
   }, [addItem]);
 
-  const windowDecorations = (app: string) => ({ active: activeApp === app, onActivate: () => setActiveApp(app) });
-
   if (!isReady) return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1e1e1e', gap: 8 }}>
       <Loader2 size={20} color="#dcb862" className="animate-spin" />
@@ -127,7 +132,6 @@ export default function DesktopPage() {
     </div>
   );
 
-  // Safety check for items
   const safeItems = Array.isArray(items) ? items : [];
 
   return (
@@ -139,8 +143,10 @@ export default function DesktopPage() {
         {/* Top bar */}
         <div style={{ height: 36, backgroundColor: '#1e1e1e', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', fontSize: 12, color: '#858585' }}>
           <span>私密虚拟桌面 / <span style={{ color: '#569cd6' }}>工作区</span></span>
-          {user?.name && <span style={{ color: '#aaa' }}>{user.name}</span>}
-          {isAuthenticated && <button onClick={logout} style={{ fontSize: 10, background: 'transparent', border: 'none', color: '#858585', cursor: 'pointer' }}>退出</button>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {user?.name && <span style={{ color: '#aaa' }}>{user.name}</span>}
+            {isAuthenticated && <button onClick={logout} style={{ fontSize: 10, background: 'transparent', border: 'none', color: '#858585', cursor: 'pointer' }}>退出</button>}
+          </div>
         </div>
 
         {/* Desktop icons */}
@@ -160,8 +166,16 @@ export default function DesktopPage() {
 
         {/* Status bar */}
         <div style={{ height: 24, backgroundColor: '#1e1e1e', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', fontSize: 10, color: '#858585' }}>
-          <span>💻 私密桌面</span>
-          <span>📶 {isCloudEnabled ? '云端同步' : '本地存储'}</span>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <span>私密桌面</span>
+            <span>{isCloudEnabled ? '云端同步' : '本地存储'}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {/* Quick app launchers */}
+            <button onClick={() => { setNotepadOpen(true); setNotepadState('normal'); }} style={{ background: 'transparent', border: 'none', color: notepadOpen ? '#dcb862' : '#858585', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><StickyNote size={10} />记事本</button>
+            <button onClick={() => { setCookbookOpen(true); setCookbookState('normal'); }} style={{ background: 'transparent', border: 'none', color: cookbookOpen ? '#dcb862' : '#858585', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><BookOpen size={10} />菜谱</button>
+            <button onClick={() => { setDialogueOpen(true); setDialogueState('normal'); }} style={{ background: 'transparent', border: 'none', color: dialogueOpen ? '#569cd6' : '#858585', cursor: 'pointer', fontSize: 10, display: 'flex', alignItems: 'center', gap: 3 }}><MessageCircle size={10} />对话</button>
+          </div>
         </div>
       </div>
 
@@ -188,21 +202,36 @@ export default function DesktopPage() {
       )}
 
       {/* Cat Desktop */}
-      <CatDesktop onClick={() => setDialogueState(dialogueState === 'minimized' ? 'normal' : 'minimized')} />
+      <CatDesktop onClick={() => { setDialogueOpen(true); setDialogueState('normal'); }} />
 
-      {/* Terminal Dialog */}
-      {isDialogueVisible && (
-        <TerminalDialog onClose={() => setIsDialogueVisible(false)} onMinimize={() => setDialogueState('minimized')} isMaximized={dialogueState === 'maximized'} onToggleMaximize={() => setDialogueState(dialogueState === 'maximized' ? 'normal' : 'maximized')} />
+      {/* Notepad Window */}
+      {notepadOpen && (
+        <Notepad
+          onClose={() => setNotepadOpen(false)}
+          onMinimize={() => setNotepadState('minimized')}
+          isMaximized={notepadState === 'maximized'}
+          onToggleMaximize={() => setNotepadState(notepadState === 'maximized' ? 'normal' : 'maximized')}
+        />
       )}
 
-      {/* Notepad */}
-      {isNotepadVisible && (
-        <Notepad onClose={() => setIsNotepadVisible(false)} onMinimize={() => setNotepadState('minimized')} isMaximized={notepadState === 'maximized'} onToggleMaximize={() => setNotepadState(notepadState === 'maximized' ? 'normal' : 'maximized')} />
+      {/* Cookbook Window */}
+      {cookbookOpen && (
+        <Cookbook
+          onClose={() => setCookbookOpen(false)}
+          onMinimize={() => setCookbookState('minimized')}
+          isMaximized={cookbookState === 'maximized'}
+          onToggleMaximize={() => setCookbookState(cookbookState === 'maximized' ? 'normal' : 'maximized')}
+        />
       )}
 
-      {/* Cookbook */}
-      {isCookbookVisible && (
-        <Cookbook onClose={() => setIsCookbookVisible(false)} onMinimize={() => setCookbookState('minimized')} isMaximized={cookbookState === 'maximized'} onToggleMaximize={() => setCookbookState(cookbookState === 'maximized' ? 'normal' : 'maximized')} />
+      {/* Terminal/Dialogue Window */}
+      {dialogueOpen && (
+        <TerminalDialog
+          onClose={() => setDialogueOpen(false)}
+          onMinimize={() => setDialogueState('minimized')}
+          isMaximized={dialogueState === 'maximized'}
+          onToggleMaximize={() => setDialogueState(dialogueState === 'maximized' ? 'normal' : 'maximized')}
+        />
       )}
     </div>
   );

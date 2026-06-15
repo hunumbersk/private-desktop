@@ -8,6 +8,9 @@ import {
   File,
   Lock,
   ShieldCheck,
+  StickyNote,
+  BookOpen,
+  Sparkles,
 } from 'lucide-react';
 import type { DesktopItem } from '@/hooks/useDesktopStore';
 
@@ -29,6 +32,10 @@ const iconMap: Record<string, React.ElementType> = {
   file: File,
   lock: Lock,
   shield: ShieldCheck,
+  notepad: StickyNote,
+  cookbook: BookOpen,
+  dialogue: MessageCircle,
+  app: Sparkles,
 };
 
 const typeColorMap: Record<string, string> = {
@@ -38,6 +45,7 @@ const typeColorMap: Record<string, string> = {
   text: '#d4d4d4',
   link: '#4ec9b0',
   file: '#858585',
+  app: '#dcb862',
 };
 
 export default function DesktopIcon({
@@ -113,8 +121,17 @@ export default function DesktopIcon({
       onDoubleClick={handleDoubleClick}
       onContextMenu={onContextMenu}
     >
-      <div className="relative">
-        <IconComponent size={40} color={iconColor} strokeWidth={1.2} />
+      <div
+        className="relative flex items-center justify-center"
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: item.type === 'app' ? 10 : 4,
+          backgroundColor: item.type === 'app' ? `${iconColor}15` : 'transparent',
+          border: item.type === 'app' ? `1px solid ${iconColor}30` : '1px solid transparent',
+        }}
+      >
+        <IconComponent size={item.type === 'app' ? 26 : 40} color={iconColor} strokeWidth={1.5} />
         {item.source === 'external' && (
           <div
             className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full flex items-center justify-center"
