@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState, useRef } from "react";
-import { trpc } from "@/providers/trpc";
+import { register as apiRegister, login as apiLogin, getMe, logoutApi } from "@/lib/api-client";
 
 const LOCAL_AUTH_KEY = "private-desktop-local-auth";
 const LOCAL_MODE_KEY = "private-desktop-mode";
-const LOCAL_USERNAME_KEY = "private-desktop-local-username";
 
 export interface AuthUser {
   id: number;
@@ -42,20 +41,10 @@ function setLocalAuth(user: AuthUser | null) {
 }
 
 export function useAuth() {
-  const [localUser, setLocalUser] = useState<AuthUser | null>(getLocalAuth);
+  const [user, setUser] = useState<AuthUser | null>(getLocalAuth);
   const [isReady, setIsReady] = useState(false);
   const [apiHealthy, setApiHealthy] = useState<boolean | null>(null);
   const initDone = useRef(false);
-
-  const {
-    data: apiUser,
-    isLoading: apiLoading,
-    error: apiError,
-  } = trpc.auth.me.useQuery(undefined, {
-    retry: 1,
-    refetchOnWindowFocus: false,
-    staleTime: 60000,
-  });
 
   // Initialize auth state
   useEffect(() => {
@@ -64,86 +53,71 @@ export function useAuth() {
 
     const storedMode = getStoredMode();
 
-    if (storedMode === "local") {
-      const storedUser = getLocalAuth();
-      if (storedUser) {
-        setLocalUser(storedUser);
-        setApiHealthy(true);
-      } else {
-        setStoredMode(null);
-      }
-      setIsReady(true);
+    if (storedMode === "local" || storedMode === "cloud") {
+      // Try to verify token with backend
+      getMe()
+        .then((data) => {
+          if (data && data.id) {
+            const authUser: AuthUser = {
+              id: data.id,
+              unionId: `local:${data.username}`,
+              name: data.name || data.username,
+              username: data.username,
+              role: data.role || "user",
+            };
+            setUser(authUser);
+            setLocalAuth(authUser);
+            setApiHealthy(true);
+          }
+          setIsReady(true);
+        })
+        .catch(() => {
+          // Backend unavailable, check local auth
+          const stored = getLocalAuth();
+          if (stored) {
+            setUser(stored);
+            setApiHealthy(false);
+          } else {
+            setStoredMode(null);
+            setLocalAuth(null);
+          }
+          setIsReady(true);
+        });
     } else {
-      const timer = setTimeout(() => setIsReady(true), 800);
-      return () => clearTimeout(timer);
+      setIsReady(true);
     }
   }, []);
 
-  // Handle API response
-  useEffect(() => {
-    if (apiUser !== undefined) {
-      setApiHealthy(true);
-      if (apiUser) {
-        setStoredMode("cloud");
-        setLocalAuth(null);
-      }
-      setIsReady(true);
-    } else if (apiError) {
-      setApiHealthy(false);
-      if (getStoredMode() === "cloud") {
-        setStoredMode(null);
-        setLocalAuth(null);
-        setLocalUser(null);
-      }
-      setIsReady(true);
-    }
-  }, [apiUser, apiError]);
-
-  // Local auth mutations
-  const registerMutation = trpc.localAuth.register.useMutation();
-  const loginMutation = trpc.localAuth.login.useMutation();
-
-  const user = apiUser || localUser;
-  const isAuthenticated = !!user;
-
-  const logoutMutation = trpc.auth.logout.useMutation();
-  const utils = trpc.useUtils();
-
-  const logout = useCallback(() => {
-    setLocalAuth(null);
-    setLocalUsername(null);
-    setStoredMode(null);
-    setLocalUser(null);
-    logoutMutation.mutate(undefined, {
-      onSettled: () => {
-        utils.auth.me.invalidate();
-        window.location.reload();
-      },
-    });
-  }, [logoutMutation, utils]);
-
   const register = useCallback(async (username: string, password: string, name?: string) => {
-    const result = await registerMutation.mutateAsync({ username, password, name });
+    const result = await apiRegister(username, password, name);
     return result;
-  }, [registerMutation]);
+  }, []);
 
   const loginLocal = useCallback(async (username: string, password: string) => {
-    const result = await loginMutation.mutateAsync({ username, password });
-    if (result.success && result.user) {
+    const result = await apiLogin(username, password);
+    if (result?.success && result?.user) {
       const authUser: AuthUser = {
         id: result.user.id,
-        unionId: `local:${username}`,
-        name: result.user.name || username,
-        username: result.user.username || username,
+        unionId: `local:${result.user.username}`,
+        name: result.user.name || result.user.username,
+        username: result.user.username,
         role: result.user.role,
       };
       setLocalAuth(authUser);
-      setStoredMode("local");
-      setLocalUser(authUser);
+      setStoredMode("cloud");
+      setUser(authUser);
       setApiHealthy(true);
     }
     return result;
-  }, [loginMutation]);
+  }, []);
+
+  const logout = useCallback(() => {
+    logoutApi();
+    setLocalAuth(null);
+    setStoredMode(null);
+    setUser(null);
+    window.location.reload();
+  }, []);
 
   const bypassLogin = useCallback(() => {
     const mockUser: AuthUser = {
@@ -154,14 +128,14 @@ export function useAuth() {
     };
     setLocalAuth(mockUser);
     setStoredMode("local");
-    setLocalUser(mockUser);
-    setApiHealthy(true);
+    setUser(mockUser);
+    setApiHealthy(false);
   }, []);
 
   return {
     user,
-    isAuthenticated,
-    isLoading: apiLoading && !isReady,
+    isAuthenticated: !!user,
+    isLoading: !isReady,
     isReady,
     isAdmin: user?.role === "admin",
     apiHealthy,

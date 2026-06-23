@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { trpc } from '@/providers/trpc';
+import { useState, useCallback, useEffect } from 'react';
+import { listRecipes, createRecipe, updateRecipe, deleteRecipe } from '@/lib/api-client';
 
 export interface RecipeItem {
   recipeId: string;
@@ -16,36 +16,53 @@ export interface RecipeItem {
 }
 
 export function useCookbookAPI() {
-  const utils = trpc.useUtils();
-  const listQuery = trpc.cookbook.list.useQuery(undefined, { retry: 1, staleTime: 30000 });
-  const syncMutation = trpc.cookbook.sync.useMutation({
-    onSuccess: () => utils.cookbook.list.invalidate(),
-  });
-  const createMutation = trpc.cookbook.create.useMutation({
-    onSuccess: () => utils.cookbook.list.invalidate(),
-  });
-  const deleteMutation = trpc.cookbook.delete.useMutation({
-    onSuccess: () => utils.cookbook.list.invalidate(),
-  });
+  const [recipes, setRecipes] = useState<RecipeItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const sync = useCallback((recipes: RecipeItem[]) => {
-    return syncMutation.mutateAsync(recipes);
-  }, [syncMutation]);
+  const fetchRecipes = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const data = await listRecipes();
+      if (Array.isArray(data)) {
+        setRecipes(data.map((r: any) => ({
+          recipeId: r.recipeId,
+          name: r.name,
+          ingredients: r.ingredients || '[]',
+          steps: r.steps || '[]',
+          cookTime: r.cookTime || 15,
+          method: r.method || '',
+          taste: r.taste || '',
+          tags: r.tags || '[]',
+          linkedRecipeIds: r.linkedRecipeIds || '[]',
+          note: r.note || '',
+          linkUrl: r.linkUrl || '',
+        })));
+      }
+    } catch { /* ignore */ }
+    finally { setIsLoading(false); }
+  }, []);
 
-  const create = useCallback((recipe: RecipeItem) => {
-    return createMutation.mutateAsync(recipe as any);
-  }, [createMutation]);
+  useEffect(() => { fetchRecipes(); }, [fetchRecipes]);
 
-  const remove = useCallback((recipeId: string) => {
-    return deleteMutation.mutateAsync({ recipeId });
-  }, [deleteMutation]);
+  const sync = useCallback(async (recipesData: RecipeItem[]) => {
+    for (const recipe of recipesData) {
+      try { await createRecipe(recipe); } catch { /* ignore duplicates */ }
+    }
+    await fetchRecipes();
+  }, [fetchRecipes]);
 
-  return {
-    recipes: listQuery.data || [],
-    isLoading: listQuery.isLoading,
-    sync,
-    create,
-    remove,
-    refetch: listQuery.refetch,
-  };
+  const create = useCallback(async (recipe: RecipeItem) => {
+    const data = await createRecipe(recipe);
+    await fetchRecipes();
+    return data;
+  }, [fetchRecipes]);
+
+  const remove = useCallback(async (recipeId: string) => {
+    await deleteRecipe(recipeId);
+    await fetchRecipes();
+  }, [fetchRecipes]);
+
+  const refetch = useCallback(() => fetchRecipes(), [fetchRecipes]);
+
+  return { recipes, isLoading, sync, create, remove, refetch };
 }

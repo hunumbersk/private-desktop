@@ -22,9 +22,9 @@ export function useDataSync() {
     hasPulled.current = true;
 
     // Pull notes
-    notesAPI.refetch().then(({ data }) => {
+    notesAPI.refetch().then(() => {
+      const data = notesAPI.notes;
       if (data && Array.isArray(data) && data.length > 0) {
-        // Convert DB rows to local format and save
         const items: Record<string, any> = {};
         data.forEach((row: any) => {
           items[row.itemId] = {
@@ -55,7 +55,8 @@ export function useDataSync() {
     }).catch(() => {});
 
     // Pull recipes
-    cookbookAPI.refetch().then(({ data }) => {
+    cookbookAPI.refetch().then(() => {
+      const data = cookbookAPI.recipes;
       if (data && Array.isArray(data) && data.length > 0) {
         const recipes = data.map((row: any) => ({
           id: row.recipeId,

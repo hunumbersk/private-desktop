@@ -1,11 +1,10 @@
 import { StrictMode, Component, type ReactNode } from 'react'
 import { HashRouter } from 'react-router'
 import { createRoot } from 'react-dom/client'
-import { TRPCProvider } from '@/providers/trpc'
 import './index.css'
 import App from './App.tsx'
 
-// Error boundary - silent recovery with friendly message
+// Error boundary
 class StartupErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
   constructor(props: { children: ReactNode }) {
     super(props);
@@ -19,7 +18,7 @@ class StartupErrorBoundary extends Component<{ children: ReactNode }, { hasError
       return (
         <div style={{ padding: 20, fontFamily: 'monospace', fontSize: 12, textAlign: 'center', marginTop: '10vh', color: '#858585' }}>
           <p>应用加载出现问题</p>
-          <pre style={{ textAlign: 'left', background: '#1a1a1a', padding: 12, borderRadius: 4, marginTop: 12, maxWidth: 800, margin: '12px auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 10 }}>{this.state.error}</pre>
+          <pre style={{ textAlign: 'left', background: '#1a1a1a', padding: 12, borderRadius: 4, margin: '12px auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 10 }}>{this.state.error}</pre>
           <button onClick={() => window.location.reload()} style={{ marginTop: 12, padding: '6px 16px', borderRadius: 4, border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: '#aaa', fontSize: 12, cursor: 'pointer' }}>刷新页面</button>
         </div>
       );
@@ -28,7 +27,6 @@ class StartupErrorBoundary extends Component<{ children: ReactNode }, { hasError
   }
 }
 
-// Silent error handlers
 window.addEventListener('error', (e) => { console.error('[Global Error]', e.error); });
 window.addEventListener('unhandledrejection', (e) => { console.error('[Unhandled Promise]', e.reason); });
 
@@ -36,9 +34,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <StartupErrorBoundary>
       <HashRouter>
-        <TRPCProvider>
-          <App />
-        </TRPCProvider>
+        <App />
       </HashRouter>
     </StartupErrorBoundary>
   </StrictMode>,
